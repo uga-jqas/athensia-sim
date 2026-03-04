@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Athensia File - Moderator</title>
 <script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -843,15 +842,13 @@ function generateQR() {
   const playerUrl = window.location.href.replace('moderator.html', 'player.html');
   document.getElementById('playerUrl').textContent = playerUrl;
 
-  new QRCode(document.getElementById('qrcode'), {
-    text: playerUrl,
-    width: 160,
-    height: 160,
-    colorDark: '#000000',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.M
-  });
-}
+  const encoded = encodeURIComponent(playerUrl);
+const qrImg = document.createElement('img');
+qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encoded;
+qrImg.style.border = '4px solid white';
+qrImg.style.display = 'block';
+document.getElementById('qrcode').innerHTML = '';
+document.getElementById('qrcode').appendChild(qrImg);
 
 // ============================================================
 // SEND COMMANDS TO PLAYERS
