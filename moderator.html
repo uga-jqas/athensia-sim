@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Athensia File - Moderator</title>
+<script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080a10;
+  --surface: #0f1219;
+  --surface2: #161b27;
+  --surface3: #1e2538;
+  --uga-red: #ba0c2f;
+  --uga-red-dim: #7a0820;
+  --gold: #c9a227;
+  --gold-dim: #7a6118;
+  --text: #e2e8f0;
+  --muted: #6a7a90;
+  --border: #1e2538;
+  --green: #2d8a4e;
+  --green-dim: #1a4f2e;
+  --panel-w: 320px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-weight: 300;
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+}
+
+/* ---- HEADER ---- */
+.header {
+  background: #000;
+  border-bottom: 2px solid var(--uga-red);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.header-left { display: flex; align-items: center; gap: 1rem; }
+
+.mod-badge {
+  background: var(--uga-red);
+  color: white;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  font-family: 'Crimson Pro', serif;
+}
+
+.header-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.1em;
+  color: white;
+}
+
+.header-right { display: flex; align-items: center; gap: 1.5rem; }
+
+.conn-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s ease infinite; }
+.conn-dot.off { background: var(--uga-red); animation: none; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+/* ---- PHASE BAR ---- */
+.phase-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+
+.phase-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.3rem 0.75rem;
+  font-family: 'Crimson Pro', serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.phase-btn:hover { border-color: var(--gold); color: var(--gold); }
+.phase-btn.active { background: var(--uga-red); border-color: var(--uga-red); color: white; }
+
+.phase-arrow { color: var(--border); font-size: 0.8rem; flex-shrink: 0; }
+
+/* ---- MAIN LAYOUT ---- */
+.app-body {
+  display: grid;
+  grid-template-columns: var(--panel-w) 1fr var(--panel-w);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---- LEFT PANEL: Players ---- */
+.panel-left {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: var(--surface2);
+  flex-shrink: 0;
+}
+
+.player-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+  background: var(--surface2);
+  gap: 0.5rem;
+}
+
+.player-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.player-dot.pending { background: var(--gold); }
+
+.player-info { flex: 1; min-width: 0; }
+.player-id { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-role { font-size: 0.85rem; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.player-count {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* QR section */
+.qr-section {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.qr-label { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem; }
+
+#qrcode { display: flex; justify-content: center; }
+#qrcode canvas, #qrcode img { border: 4px solid white; }
+
+.qr-url { font-size: 0.68rem; color: var(--muted); margin-top: 0.5rem; word-break: break-all; }
+
+/* ---- CENTER: Control ---- */
+.panel-center {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.center-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.center-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  padding: 0.75rem 1.25rem;
+  font-family: 'Crimson Pro', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+.center-tab:hover { color: var(--text); }
+.center-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+.center-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+/* ---- RIGHT PANEL: Script ---- */
+.panel-right {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.script-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.script-block {
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.script-phase {
+  background: var(--surface2);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border-bottom: 1px solid var(--border);
+}
+
+.script-text {
+  padding: 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: #99a8bb;
+}
+
+.script-text strong { color: var(--text); }
+.script-text em { color: var(--gold); font-style: normal; font-size: 0.78rem; }
+
+.script-adaptive {
+  background: rgba(201,162,39,0.06);
+  border-left: 2px solid var(--gold);
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #99a8bb;
+  line-height: 1.6;
+}
+
+/* ---- CONTROL BUTTONS ---- */
+.control-section { margin-bottom: 1.75rem; }
+
+.control-section-title {
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.cmd-btn {
+  display: block;
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.75rem 1.25rem;
+  font-family: 'Crimson Pro', serif;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cmd-btn:hover { border-color: var(--gold); background: var(--surface3); }
+.cmd-btn.sent { border-color: var(--green); background: rgba(45,138,78,0.08); }
+.cmd-btn.danger { border-color: var(--border); }
+.cmd-btn.danger:hover { border-color: var(--uga-red); background: rgba(186,12,47,0.08); }
+
+.cmd-btn-label { font-size: 0.88rem; color: var(--text); }
+.cmd-btn-sub { font-size: 0.72rem; color: var(--muted); font-style: italic; }
+.cmd-btn-arrow { color: var(--muted); font-size: 0.8rem; flex-shrink: 0; }
+
+.round-path-selector { margin-bottom: 1rem; }
+.path-label { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.4rem; letter-spacing: 0.08em; }
+
+select.path-select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.5rem 0.75rem;
+  font-family: 'Crimson Pro', serif;
+  font-size: 0.88rem;
+  outline: none;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+select.path-select:focus { border-color: var(--gold); }
+
+/* TIMER */
+.timer-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.timer-display {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3.5rem;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  text-align: center;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+
+.timer-display.urgent { color: var(--uga-red); animation: blink 0.8s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+.timer-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem; }
+
+.t-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.4rem;
+  font-family: 'Crimson Pro', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+.t-btn:hover { border-color: var(--gold); color: var(--gold); }
+.t-btn.go { background: var(--uga-red); border-color: var(--uga-red); color: white; }
+.t-btn.go:hover { background: var(--uga-red-dim); }
+
+.timer-presets { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.preset-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.25rem 0.6rem;
+  font-family: 'Crimson Pro', serif;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.preset-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* VOTES */
+.vote-tally {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.vote-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.vote-row:last-child { border-bottom: none; }
+.vote-role { color: var(--muted); font-size: 0.8rem; }
+.vote-choice { color: var(--text); font-weight: 600; }
+.vote-choice.yes { color: var(--green); }
+.vote-choice.no { color: var(--uga-red); }
+
+/* GENERAL */
+h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+p { font-size: 0.9rem; line-height: 1.75; color: #99a8bb; margin-bottom: 0.75rem; }
+p:last-child { margin-bottom: 0; }
+.rule { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+.tag { font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 0.5rem; }
+
+.dispatch {
+  border-left: 3px solid var(--gold);
+  background: rgba(201,162,39,0.05);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+.dispatch p { font-size: 0.88rem; }
+
+.notify-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--green);
+  color: white;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  z-index: 1000;
+  animation: toastIn 0.3s ease;
+  pointer-events: none;
+}
+@keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+@media (max-width: 1100px) {
+  .app-body { grid-template-columns: 260px 1fr 260px; }
+  --panel-w: 260px;
+}
+
+@media (max-width: 900px) {
+  .app-body { grid-template-columns: 1fr; }
+  .panel-left, .panel-right { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <span class="mod-badge">Moderator</span>
+    <span class="header-title">The Athensia File - Control Panel</span>
+  </div>
+  <div class="header-right">
+    <div class="conn-status">
+      <span class="conn-dot" id="connDot"></span>
+      <span id="connText">Connecting...</span>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE BAR -->
+<div class="phase-bar">
+  <button class="phase-btn active" id="ph-lobby" onclick="setPhase('lobby')">Lobby</button>
+  <span class="phase-arrow">&#9654;</span>
+  <button class="phase-btn" id="ph-briefing" onclick="setPhase('briefing')">Briefing</button>
+  <span class="phase-arrow">&#9654;</span>
+  <button class="phase-btn" id="ph-scenario" onclick="setPhase('scenario')">Scenario</button>
+  <span class="phase-arrow">&#9654;</span>
+  <button class="phase-btn" id="ph-round1" onclick="setPhase('round1')">Round 1</button>
+  <span class="phase-arrow">&#9654;</span>
+  <button class="phase-btn" id="ph-round2" onclick="setPhase('round2')">Round 2</button>
+  <span class="phase-arrow">&#9654;</span>
+  <button class="phase-btn" id="ph-round3" onclick="setPhase('round3')">Round 3</button>
+  <span class="phase-arrow">&#9654;</span>
+  <button class="phase-btn" id="ph-reveal" onclick="setPhase('reveal')">Reveal</button>
+  <span class="phase-arrow">&#9654;</span>
+  <button class="phase-btn" id="ph-discussion" onclick="setPhase('discussion')">Discussion</button>
+</div>
+
+<!-- MAIN -->
+<div class="app-body">
+
+  <!-- LEFT: Players + QR -->
+  <div class="panel-left">
+    <div class="panel-header">Connected Players (<span id="playerCountLabel">0</span>)</div>
+    <div class="player-list" id="playerList">
+      <p style="color:var(--muted);font-size:0.8rem;font-style:italic;padding:0.5rem;">No players connected yet. Share the QR code below.</p>
+    </div>
+    <div class="player-count" id="playerCountDetail">0 players connected</div>
+
+    <div class="qr-section">
+      <div class="qr-label">Player Link - Scan to Join</div>
+      <div id="qrcode"></div>
+      <div class="qr-url" id="playerUrl">Loading...</div>
+    </div>
+  </div>
+
+  <!-- CENTER: Controls -->
+  <div class="panel-center">
+    <div class="center-tabs">
+      <button class="center-tab active" onclick="showCenterTab('controls', this)">Controls</button>
+      <button class="center-tab" onclick="showCenterTab('votes', this)">Votes</button>
+      <button class="center-tab" onclick="showCenterTab('roleguide', this)">Role Guide</button>
+    </div>
+
+    <div class="center-content">
+
+      <!-- CONTROLS TAB -->
+      <div id="tab-controls">
+
+        <!-- TIMER -->
+        <div class="timer-block">
+          <div class="timer-display" id="timerDisplay">15:00</div>
+          <div class="timer-btns">
+            <button class="t-btn go" onclick="startTimer()">Start</button>
+            <button class="t-btn" onclick="pauseTimer()">Pause</button>
+            <button class="t-btn" onclick="resetTimer()">Reset</button>
+          </div>
+          <div class="timer-presets">
+            <button class="preset-btn" onclick="setTimer(5)">5 min</button>
+            <button class="preset-btn" onclick="setTimer(10)">10 min</button>
+            <button class="preset-btn" onclick="setTimer(15)">15 min</button>
+            <button class="preset-btn" onclick="setTimer(20)">20 min</button>
+          </div>
+        </div>
+
+        <!-- LOBBY -->
+        <div class="control-section" id="ctrl-lobby">
+          <div class="control-section-title">Lobby Controls</div>
+          <button class="cmd-btn" onclick="sendCommand('roleselect', 'Select your role', 'Lobby')">
+            <div><div class="cmd-btn-label">Open Role Selection</div><div class="cmd-btn-sub">Players can now choose their role</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn" onclick="sendCommand('briefing-locked', 'Waiting for briefing to unlock', 'Lobby - Roles Selected')">
+            <div><div class="cmd-btn-label">Lock In Roles</div><div class="cmd-btn-sub">Advance players to waiting screen</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+        <!-- BRIEFING -->
+        <div class="control-section" id="ctrl-briefing">
+          <div class="control-section-title">Briefing Phase</div>
+          <button class="cmd-btn" onclick="sendCommand('briefing', 'Read your briefing carefully', 'Phase: Briefing')">
+            <div><div class="cmd-btn-label">Unlock Role Briefings</div><div class="cmd-btn-sub">Players see their full secret role card</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn" onclick="sendCommand('waiting', 'Stand by for the scenario', 'Briefing Complete')">
+            <div><div class="cmd-btn-label">End Briefing - Hold Players</div><div class="cmd-btn-sub">Players see waiting screen</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+        <!-- SCENARIO -->
+        <div class="control-section" id="ctrl-scenario">
+          <div class="control-section-title">Scenario Phase</div>
+          <button class="cmd-btn" onclick="sendCommand('scenario', 'Read the scenario carefully', 'Phase: Scenario')">
+            <div><div class="cmd-btn-label">Show Scenario to All Players</div><div class="cmd-btn-sub">The Athensia intelligence briefing</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+        <!-- ROUND 1 -->
+        <div class="control-section" id="ctrl-round1">
+          <div class="control-section-title">Round 1</div>
+          <button class="cmd-btn" onclick="sendCommand('round1', 'Round 1 vote is open', 'Round 1: Surveillance Authorization')">
+            <div><div class="cmd-btn-label">Open Round 1 Vote</div><div class="cmd-btn-sub">Surveillance flight authorization</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn" onclick="sendCommand('waiting', 'Votes recorded - moderator reviewing', 'Round 1 - Votes In')">
+            <div><div class="cmd-btn-label">Close Round 1 Vote</div><div class="cmd-btn-sub">Hold players while you review</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+        <!-- ROUND 2 -->
+        <div class="control-section" id="ctrl-round2">
+          <div class="control-section-title">Round 2 - Choose Path</div>
+          <div class="round-path-selector">
+            <div class="path-label">Which path did Round 1 take?</div>
+            <select class="path-select" id="r2path">
+              <option value="round2a">Path A: Flights were authorized (YES vote)</option>
+              <option value="round2b">Path B: Flights were refused (NO vote)</option>
+            </select>
+          </div>
+          <button class="cmd-btn" onclick="sendR2()">
+            <div><div class="cmd-btn-label">Open Round 2 Vote</div><div class="cmd-btn-sub">Send players to correct path</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn" onclick="sendCommand('waiting', 'Votes recorded - moderator reviewing', 'Round 2 - Votes In')">
+            <div><div class="cmd-btn-label">Close Round 2 Vote</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+        <!-- ROUND 3 -->
+        <div class="control-section" id="ctrl-round3">
+          <div class="control-section-title">Round 3 - Choose Path</div>
+          <div class="round-path-selector">
+            <div class="path-label">Which path did Round 2 take?</div>
+            <select class="path-select" id="r3path">
+              <option value="round3a">Path A: Air strikes launched (YES in R2)</option>
+              <option value="round3b">Path B: Strikes held for verification (NO in R2A)</option>
+              <option value="round3c">Path C: Diplomacy chosen (NO in R2B)</option>
+            </select>
+          </div>
+          <button class="cmd-btn" onclick="sendR3()">
+            <div><div class="cmd-btn-label">Open Round 3 Vote</div><div class="cmd-btn-sub">Send players to correct path</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn" onclick="sendCommand('waiting', 'Votes recorded - moderator reviewing', 'Round 3 - Votes In')">
+            <div><div class="cmd-btn-label">Close Round 3 Vote</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+        <!-- REVEAL & DISCUSSION -->
+        <div class="control-section">
+          <div class="control-section-title">Endgame</div>
+          <button class="cmd-btn" onclick="sendCommand('waiting', 'Reveal roles - flip your cards now', 'Role Reveal')">
+            <div><div class="cmd-btn-label">Trigger Role Reveal</div><div class="cmd-btn-sub">Tell players to flip cards simultaneously</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn" onclick="sendCommand('reveal', 'The real-world parallels are now visible', 'The Reveal')">
+            <div><div class="cmd-btn-label">Show Real-World Reveal</div><div class="cmd-btn-sub">Iraq and Libya parallels appear on player screens</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn" onclick="sendCommand('discussion', 'Discussion questions - reflect on the game', 'Discussion')">
+            <div><div class="cmd-btn-label">Open Discussion Questions</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+        <!-- EMERGENCY -->
+        <div class="control-section">
+          <div class="control-section-title">Emergency</div>
+          <button class="cmd-btn danger" onclick="sendCommand('waiting', 'Please stand by', 'Paused')">
+            <div><div class="cmd-btn-label">Pause All Players</div><div class="cmd-btn-sub">Show waiting screen to everyone</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+          <button class="cmd-btn danger" onclick="resetGame()">
+            <div><div class="cmd-btn-label">Reset Game</div><div class="cmd-btn-sub">Clear all player data and restart</div></div>
+            <span class="cmd-btn-arrow">&#9654;</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- VOTES TAB -->
+      <div id="tab-votes" style="display:none;">
+        <span class="tag">Live Vote Tally</span>
+        <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">Votes appear here as players submit them.</p>
+        <div id="voteList">
+          <p style="color:var(--muted);font-size:0.85rem;font-style:italic;">No votes yet.</p>
+        </div>
+        <div class="rule"></div>
+        <button class="cmd-btn" onclick="clearVotes()">
+          <div><div class="cmd-btn-label">Clear Vote Tally</div><div class="cmd-btn-sub">Reset for next round</div></div>
+        </button>
+      </div>
+
+      <!-- ROLE GUIDE TAB -->
+      <div id="tab-roleguide" style="display:none;">
+        <span class="tag">Role Assignment Guide</span>
+        <p>Use this to decide which roles to enable based on attendance.</p>
+        <div class="dispatch">
+          <p><strong>4 players:</strong> Secretary of State, The Exile, The General + Arms Dealer</p>
+          <p><strong>5 players:</strong> Above + Sanford Pact Agent</p>
+          <p><strong>6 players:</strong> Above + True Believer</p>
+          <p><strong>7-8 players:</strong> Above + Minerals Minister (+ Red and Black Reporter at 8)</p>
+          <p><strong>9-12 players:</strong> All roles. Duplicate Secretary or General for extra players.</p>
+        </div>
+        <div class="rule"></div>
+        <span class="tag">Role Spoiler Sheet</span>
+        <p style="font-size:0.85rem; color:var(--muted);">Reference this during the reveal to call out secret goals.</p>
+        <div style="font-size:0.82rem; line-height:1.8; color:#99a8bb;">
+          <p><strong style="color:var(--gold);">Secretary of State</strong> - No hidden agenda. Genuinely wants to stop atrocities.</p>
+          <p><strong style="color:#f08090);">The Exile (Garrison Odum)</strong> - Fabricated intelligence. Wants personal power in Athensia.</p>
+          <p><strong style="color:var(--gold);">The General</strong> - No hidden agenda. Genuinely warns against reckless intervention.</p>
+          <p><strong style="color:#f08090;">The Arms Dealer</strong> - Needs the war to escalate for contract reasons.</p>
+          <p><strong style="color:#f08090;">Sanford Pact Agent</strong> - Wants the Coalition bogged down. Secretly serves the rival power.</p>
+          <p><strong style="color:var(--text);">The True Believer</strong> - Sincere but being manipulated by The Exile without knowing it.</p>
+          <p><strong style="color:#f08090;">Minerals Minister</strong> - Wants extraction agreements regardless of who wins.</p>
+          <p><strong style="color:var(--text);">Red and Black Reporter</strong> - Knows about fabricated intel, wants on-record confirmation.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT: Moderator Script -->
+  <div class="panel-right">
+    <div class="panel-header">Moderator Script</div>
+    <div class="script-content" id="scriptContent">
+
+      <div class="script-block" id="script-lobby">
+        <div class="script-phase">Lobby Phase</div>
+        <div class="script-text">
+          <strong>Say:</strong> "Welcome everyone. This is a 15-minute simulation about ethics and foreign policy. You'll each be playing a role on a fictional security council. Some of you have hidden agendas. Your goal is to pursue your objectives while the council votes on a real crisis."
+          <div class="script-adaptive" id="adaptive-lobby">Waiting for players to connect - script will adapt based on roles filled.</div>
+        </div>
+      </div>
+
+      <div class="script-block" id="script-briefing">
+        <div class="script-phase">Briefing Phase</div>
+        <div class="script-text">
+          <strong>Say:</strong> "I'm going to unlock your role briefings now. You have 60 seconds to read your card. <em>Do not show anyone your screen.</em> Your public goal is what you tell the table. Your secret goal is what you actually want."
+          <br><br>
+          <em>Wait 60 seconds. Watch for players who look confused and help them quietly.</em>
+        </div>
+      </div>
+
+      <div class="script-block" id="script-scenario">
+        <div class="script-phase">Scenario Phase</div>
+        <div class="script-text">
+          <strong>Say:</strong> "The scenario is now on your screens. Take 30 seconds to read it. This is the crisis your council must address."
+          <br><br>
+          <em>After 30 seconds:</em> "The question before the council is not abstract. People are dying. You have power to act. You also have advisors at this table with views, interests, and information that may or may not be reliable."
+        </div>
+      </div>
+
+      <div class="script-block" id="script-round1">
+        <div class="script-phase">Round 1 Script</div>
+        <div class="script-text">
+          <strong>Say:</strong> "Round 1. The vote is now on your screens. You have 2 minutes to debate and vote. Make your case to the table. Vote on your own device."
+          <br><br>
+          <em>Prompt if needed:</em> "Remember, surveillance flights cost you nothing militarily but alert the rival power. Does that matter?"
+          <br><br>
+          <em>After votes are in:</em> "The vote is [YES/NO]. We move to Round 2."
+        </div>
+      </div>
+
+      <div class="script-block" id="script-round2">
+        <div class="script-phase">Round 2 Script</div>
+        <div class="script-text">
+          <em>Path A (Flights authorized):</em>
+          <strong>"The flights confirmed a convoy - but there's a discrepancy. Someone at this table has been asserting the intelligence is solid. Is that still their position?"</strong>
+          <br><br>
+          <em>Path B (Flights refused):</em>
+          <strong>"The offensive has started. Images of mass graves are circulating. Someone at this table advised caution. How do they feel about that now?"</strong>
+          <br><br>
+          <em>Either path:</em> "You have 2 minutes. Vote on your screens."
+        </div>
+      </div>
+
+      <div class="script-block" id="script-round3">
+        <div class="script-phase">Round 3 Script</div>
+        <div class="script-text">
+          <em>Path A (Ground forces):</em>
+          <strong>"Air strikes worked. Now there's a power vacuum. Someone at this table has been pushing for maximum intervention from the start. This is the moment they've been building toward."</strong>
+          <br><br>
+          <em>Path B (Intelligence unraveled):</em>
+          <strong>"The intelligence was wrong. The village is gone. Someone at this table was insisting the intel was reliable. You may want to ask them why."</strong>
+          <br><br>
+          <em>Path C (Veto):</em>
+          <strong>"The veto holds. Sanctions are empty. The question now is whether this council acts outside international law on moral grounds."</strong>
+        </div>
+      </div>
+
+      <div class="script-block" id="script-reveal">
+        <div class="script-phase">Reveal Phase</div>
+        <div class="script-text">
+          <strong>Say:</strong> "Before I show you the real-world parallels, I want everyone to flip their role cards simultaneously on my count. Three, two, one - flip."
+          <br><br>
+          <em>Pause for reaction. Then:</em> "Look at who was sitting at this table the entire time. Now look at how the votes went."
+          <br><br>
+          <strong>Then push the Reveal button.</strong>
+          <br><br>
+          <div class="script-adaptive" id="adaptive-reveal">Script will update with specific callouts once roles are known.</div>
+        </div>
+      </div>
+
+      <div class="script-block" id="script-discussion">
+        <div class="script-phase">Discussion Phase</div>
+        <div class="script-text">
+          <strong>Say:</strong> "The discussion questions are on your screens. We don't need to cover all of them. Start with this one: John Quincy Adams wrote this warning in 1821. How many of his predicted characters just sat at this table?"
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// ABLY SETUP - ROOT KEY (moderator has full publish rights)
+// ============================================================
+const ROOT_KEY = 'JWFImg.DNTvlQ:f4__2r2m-rMVXfpub2J_Jn-AzkwMVFEuS1KVTrNRRVQs';
+let ably, channel;
+let players = {};
+let votes = {};
+let timerInterval = null;
+let timerSeconds = 15 * 60;
+let timerRunning = false;
+
+async function initAbly() {
+  try {
+    ably = new Ably.Realtime({ key: ROOT_KEY });
+
+    ably.connection.on('connected', () => {
+      document.getElementById('connDot').classList.remove('off');
+      document.getElementById('connText').textContent = 'Connected';
+      generateQR();
+    });
+
+    ably.connection.on('disconnected', () => {
+      document.getElementById('connDot').classList.add('off');
+      document.getElementById('connText').textContent = 'Disconnected';
+    });
+
+    channel = ably.channels.get('athensia-game');
+
+    channel.subscribe('player-joined', (msg) => {
+      const { playerId, role } = msg.data;
+      players[playerId] = { role, connected: true };
+      updatePlayerList();
+      updateAdaptiveScript();
+    });
+
+    channel.subscribe('player-vote', (msg) => {
+      const { playerId, role, vote } = msg.data;
+      votes[playerId] = { role, vote };
+      updateVoteTally();
+    });
+
+  } catch(e) {
+    document.getElementById('connText').textContent = 'Connection failed';
+    document.getElementById('connDot').classList.add('off');
+  }
+}
+
+// ============================================================
+// QR CODE
+// ============================================================
+function generateQR() {
+  const playerUrl = window.location.href.replace('moderator.html', 'player.html');
+  document.getElementById('playerUrl').textContent = playerUrl;
+
+  new QRCode(document.getElementById('qrcode'), {
+    text: playerUrl,
+    width: 160,
+    height: 160,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+}
+
+// ============================================================
+// SEND COMMANDS TO PLAYERS
+// ============================================================
+function sendCommand(screen, message, phase) {
+  if (!channel) return;
+
+  const data = { screen, message, phase };
+  channel.publish('moderator-command', data);
+  channel.publish('game-state', data);
+
+  showToast('Sent: ' + phase);
+
+  // highlight active phase btn
+  document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
+  const phaseMap = {
+    'roleselect': 'lobby', 'briefing-locked': 'lobby', 'briefing': 'briefing',
+    'scenario': 'scenario', 'round1': 'round1', 'round2a': 'round2', 'round2b': 'round2',
+    'round3a': 'round3', 'round3b': 'round3', 'round3c': 'round3',
+    'reveal': 'reveal', 'discussion': 'discussion'
+  };
+  const ph = phaseMap[screen];
+  if (ph && document.getElementById('ph-' + ph)) {
+    document.getElementById('ph-' + ph).classList.add('active');
+  }
+}
+
+function setPhase(phase) {
+  document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('ph-' + phase).classList.add('active');
+}
+
+function sendR2() {
+  const path = document.getElementById('r2path').value;
+  const labels = { round2a: 'Round 2A: Surveillance Results', round2b: 'Round 2B: The Atrocity Report' };
+  sendCommand(path, 'Round 2 vote is open', labels[path]);
+}
+
+function sendR3() {
+  const path = document.getElementById('r3path').value;
+  const labels = {
+    round3a: 'Round 3A: Ground Forces Decision',
+    round3b: 'Round 3B: Intelligence Unravels',
+    round3c: 'Round 3C: The Veto'
+  };
+  sendCommand(path, 'Round 3 vote is open', labels[path]);
+}
+
+function resetGame() {
+  if (!confirm('Reset all player data and restart the game?')) return;
+  players = {};
+  votes = {};
+  updatePlayerList();
+  updateVoteTally();
+  sendCommand('roleselect', 'Game reset - please reselect your role', 'Game Reset');
+  showToast('Game reset');
+}
+
+// ============================================================
+// PLAYER LIST
+// ============================================================
+const ROLE_NAMES = {
+  secretary: 'Secretary of State',
+  exile: 'The Exile',
+  general: 'The General',
+  arms: 'Arms Dealer',
+  agent: 'Sanford Pact Agent',
+  believer: 'True Believer',
+  oil: 'Minerals Minister',
+  journalist: 'Red & Black Reporter'
+};
+
+function updatePlayerList() {
+  const list = document.getElementById('playerList');
+  const count = Object.keys(players).length;
+
+  document.getElementById('playerCountLabel').textContent = count;
+  document.getElementById('playerCountDetail').textContent = count + ' player' + (count !== 1 ? 's' : '') + ' connected';
+
+  if (count === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:0.8rem;font-style:italic;padding:0.5rem;">No players connected yet.</p>';
+    return;
+  }
+
+  list.innerHTML = '';
+  Object.entries(players).forEach(([id, p]) => {
+    const div = document.createElement('div');
+    div.className = 'player-item';
+    div.innerHTML = `
+      <span class="player-dot ${p.role ? '' : 'pending'}"></span>
+      <div class="player-info">
+        <div class="player-id">${id.substring(0, 12)}...</div>
+        <div class="player-role">${p.role ? ROLE_NAMES[p.role] || p.role : 'No role selected'}</div>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+// ============================================================
+// VOTE TALLY
+// ============================================================
+function updateVoteTally() {
+  const list = document.getElementById('voteList');
+
+  if (Object.keys(votes).length === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;font-style:italic;">No votes yet.</p>';
+    return;
+  }
+
+  const yesVotes = Object.values(votes).filter(v => v.vote.includes('YES')).length;
+  const noVotes = Object.values(votes).filter(v => v.vote.includes('NO')).length;
+
+  let html = `<div style="display:flex;gap:2rem;margin-bottom:1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">
+    <span style="color:var(--green);">YES: ${yesVotes}</span>
+    <span style="color:var(--uga-red);">NO: ${noVotes}</span>
+  </div>`;
+
+  Object.entries(votes).forEach(([id, v]) => {
+    const isYes = v.vote.includes('YES');
+    const roleName = v.role ? (ROLE_NAMES[v.role] || v.role) : 'Unknown';
+    html += `<div class="vote-row">
+      <span class="vote-role">${roleName}</span>
+      <span class="vote-choice ${isYes ? 'yes' : 'no'}">${v.vote}</span>
+    </div>`;
+  });
+
+  list.innerHTML = html;
+}
+
+function clearVotes() {
+  votes = {};
+  updateVoteTally();
+  showToast('Votes cleared');
+}
+
+// ============================================================
+// ADAPTIVE SCRIPT
+// ============================================================
+function updateAdaptiveScript() {
+  const roleList = Object.values(players).map(p => p.role).filter(Boolean);
+  const count = roleList.length;
+  const hasExile = roleList.includes('exile');
+  const hasArms = roleList.includes('arms');
+  const hasAgent = roleList.includes('agent');
+  const hasBeliever = roleList.includes('believer');
+  const hasJournalist = roleList.includes('journalist');
+
+  let lobbyNote = `${count} player${count !== 1 ? 's' : ''} connected.`;
+  if (count < 3) lobbyNote += ' Waiting for at least 3 players (minimum for mandatory roles).';
+
+  let villainCount = [hasExile, hasArms, hasAgent].filter(Boolean).length;
+  if (villainCount > 0) {
+    lobbyNote += ` ${villainCount} player${villainCount > 1 ? 's' : ''} with hidden agendas in the room.`;
+  }
+
+  document.getElementById('adaptive-lobby').textContent = lobbyNote;
+
+  let revealNote = 'At the reveal: ';
+  if (hasExile) revealNote += 'Call out The Exile (Garrison Odum) first - their fabricated intelligence is the Chalabi parallel. ';
+  if (hasBeliever) revealNote += 'Ask the True Believer how it feels to learn they were used. ';
+  if (hasAgent) revealNote += 'Ask the Sanford Pact Agent if they achieved their goal of bogging down the Coalition. ';
+  if (!hasExile && !hasBeliever && !hasAgent) revealNote += 'Focus on whether the General\'s warnings were vindicated.';
+
+  document.getElementById('adaptive-reveal').textContent = revealNote;
+}
+
+// ============================================================
+// TIMER
+// ============================================================
+function formatTime(s) {
+  return String(Math.floor(s / 60)).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0');
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('timerDisplay');
+  el.textContent = formatTime(timerSeconds);
+  if (timerSeconds <= 60) el.classList.add('urgent');
+  else el.classList.remove('urgent');
+}
+
+function startTimer() {
+  if (timerRunning) return;
+  timerRunning = true;
+  timerInterval = setInterval(() => {
+    if (timerSeconds > 0) {
+      timerSeconds--;
+      updateTimerDisplay();
+    } else {
+      pauseTimer();
+      showToast('Time is up!');
+    }
+  }, 1000);
+}
+
+function pauseTimer() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+}
+
+function resetTimer() {
+  pauseTimer();
+  timerSeconds = 15 * 60;
+  updateTimerDisplay();
+}
+
+function setTimer(minutes) {
+  pauseTimer();
+  timerSeconds = minutes * 60;
+  updateTimerDisplay();
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function showCenterTab(tab, btn) {
+  ['controls', 'votes', 'roleguide'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.center-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+let toastTimeout;
+function showToast(msg) {
+  const existing = document.querySelector('.notify-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'notify-toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.remove(), 2000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+initAbly();
+</script>
+</body>
+</html>

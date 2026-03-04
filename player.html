@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>The Athensia File - Player</title>
+<script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0f14;
+  --surface: #13161e;
+  --surface2: #1a1e2a;
+  --uga-red: #ba0c2f;
+  --uga-red-dim: #7a0820;
+  --gold: #c9a227;
+  --gold-dim: #7a6118;
+  --text: #e2e8f0;
+  --muted: #7a8599;
+  --border: #252b38;
+  --green: #2d8a4e;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-weight: 300;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.015) 3px, rgba(0,0,0,0.015) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* HEADER */
+.header {
+  background: linear-gradient(135deg, #8a0022 0%, var(--uga-red) 60%, #8a0022 100%);
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+  border-bottom: 2px solid var(--gold);
+  position: relative;
+}
+
+.header-sub { font-size: 0.62rem; letter-spacing: 0.25em; text-transform: uppercase; color: rgba(255,255,255,0.6); margin-bottom: 0.3rem; }
+
+.header-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem;
+  letter-spacing: 0.1em;
+  color: white;
+  line-height: 1;
+}
+
+.role-indicator {
+  display: inline-block;
+  margin-top: 0.5rem;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 0.2rem 0.75rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.8);
+}
+
+/* STATUS BAR */
+.status-bar {
+  background: #000;
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  margin-right: 0.4rem;
+  animation: pulse-dot 2s ease infinite;
+}
+.status-dot.disconnected { background: var(--uga-red); animation: none; }
+
+@keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+.status-text { font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+
+/* CONTENT AREA */
+.content {
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* SCREENS */
+.screen { display: none; animation: fadeUp 0.3s ease; }
+.screen.active { display: block; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* WAITING */
+.waiting-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  gap: 1.5rem;
+}
+
+.waiting-icon {
+  width: 60px; height: 60px;
+  border: 2px solid var(--border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.waiting-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.waiting-sub { font-size: 0.9rem; color: var(--muted); font-style: italic; }
+
+/* ROLE SELECT */
+.role-select-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.4rem;
+}
+
+.role-select-sub { font-size: 0.9rem; color: var(--muted); font-style: italic; margin-bottom: 1.5rem; line-height: 1.6; }
+
+.select-wrap {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+select {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.85rem 1rem;
+  font-family: 'Crimson Pro', serif;
+  font-size: 1rem;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+select:focus { border-color: var(--gold); }
+
+.select-arrow {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+  font-size: 0.8rem;
+}
+
+.confirm-btn {
+  width: 100%;
+  background: var(--uga-red);
+  border: none;
+  color: white;
+  padding: 1rem;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 0.5rem;
+}
+
+.confirm-btn:hover { background: var(--uga-red-dim); }
+.confirm-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+.role-preview {
+  margin-top: 1.25rem;
+  border: 1px solid var(--border);
+  padding: 1.25rem;
+  background: var(--surface);
+  display: none;
+}
+
+.role-preview.visible { display: block; animation: fadeUp 0.2s ease; }
+
+.preview-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.3rem;
+}
+
+.preview-alias { font-style: italic; font-size: 0.88rem; color: var(--muted); margin-bottom: 0.75rem; }
+.preview-desc { font-size: 0.9rem; color: #99a8bb; line-height: 1.7; }
+
+/* BRIEFING */
+.briefing-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  text-align: center;
+  gap: 1rem;
+}
+
+.lock-icon { font-size: 3rem; opacity: 0.3; }
+.lock-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.06em; color: var(--muted); }
+.lock-sub { font-size: 0.85rem; color: var(--muted); font-style: italic; }
+
+/* ROLE CARD DISPLAY */
+.role-card-display {
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.role-card-top {
+  padding: 1.25rem 1.5rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.role-card-top::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+
+.role-card-top.mandatory::before { background: var(--gold); }
+.role-card-top.villain::before { background: var(--uga-red); }
+.role-card-top.neutral::before { background: var(--border); }
+
+.card-badge {
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  display: inline-block;
+  margin-bottom: 0.6rem;
+}
+
+.badge-mandatory { background: rgba(201,162,39,0.15); color: var(--gold); }
+.badge-villain { background: rgba(186,12,47,0.2); color: #f08090; }
+.badge-neutral { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+
+.card-role-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.card-alias { font-style: italic; font-size: 0.9rem; color: var(--muted); margin-top: 0.3rem; }
+
+.role-card-body { padding: 1.25rem 1.5rem; background: var(--surface); }
+
+.role-card-body p { font-size: 0.95rem; line-height: 1.75; color: #b8c4d4; margin-bottom: 1rem; }
+
+.goal-box { padding: 0.75rem 1rem; margin-bottom: 0.75rem; font-size: 0.9rem; line-height: 1.65; color: #99a8bb; }
+.goal-public { background: rgba(45,138,78,0.1); border-left: 2px solid var(--green); }
+.goal-secret { background: rgba(186,12,47,0.1); border-left: 2px solid var(--uga-red); }
+.goal-label { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 0.3rem; }
+
+.scoring-box {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.scoring-box strong { color: var(--gold); }
+
+/* INTEL / ANNOUNCEMENT screens */
+.announcement {
+  border-left: 3px solid var(--gold);
+  background: rgba(201,162,39,0.05);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.announcement-tag { font-size: 0.6rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 0.5rem; }
+.announcement h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+.announcement p { font-size: 0.95rem; line-height: 1.75; color: #b8c4d4; margin-bottom: 0.75rem; }
+.announcement p:last-child { margin-bottom: 0; }
+
+.vote-display {
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  background: var(--surface2);
+  margin-top: 1.25rem;
+}
+
+.vote-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 0.05em; margin-bottom: 1rem; }
+
+.vote-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+.vote-option {
+  border: 1px solid var(--border);
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.vote-option:hover { border-color: var(--gold); }
+.vote-option.selected { border-color: var(--uga-red); background: rgba(186,12,47,0.1); }
+
+.vote-option-label { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+.vote-option p { font-size: 0.8rem; color: var(--muted); margin-bottom: 0; }
+
+/* REVEAL */
+.reveal-content h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.05em; color: var(--uga-red); margin-bottom: 0.5rem; }
+.reveal-content p { font-size: 0.92rem; line-height: 1.75; color: #b8c4d4; margin-bottom: 0.9rem; }
+
+blockquote {
+  border-left: 3px solid var(--uga-red);
+  padding: 0.75rem 1.25rem;
+  margin: 1.25rem 0;
+  background: rgba(186,12,47,0.07);
+}
+blockquote p { font-style: italic; font-size: 0.9rem; color: #99a8bb; }
+blockquote cite { font-size: 0.72rem; color: var(--muted); display: block; margin-top: 0.3rem; }
+
+.section-tag { font-size: 0.6rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 0.5rem; }
+
+.rule { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+
+/* SCORE DISPLAY */
+.score-reveal {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+  margin-top: 1.25rem;
+}
+
+.score-number {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 4rem;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.score-label { font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-top: 0.3rem; }
+
+/* DISCUSSION */
+.discussion-q {
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 0;
+}
+.discussion-q:last-child { border-bottom: none; }
+.q-num { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; color: var(--border); margin-bottom: 0.25rem; line-height: 1; }
+.discussion-q p { font-size: 0.95rem; line-height: 1.75; color: #b8c4d4; margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-sub">Arch Coalition Security Council</div>
+  <div class="header-title">The Athensia File</div>
+  <div class="role-indicator" id="roleIndicator">Connecting...</div>
+</div>
+
+<div class="status-bar">
+  <div>
+    <span class="status-dot" id="statusDot"></span>
+    <span class="status-text" id="statusText">Connecting to session...</span>
+  </div>
+  <span class="status-text" id="sessionPhase">Waiting for moderator</span>
+</div>
+
+<div class="content">
+
+  <!-- CONNECTING -->
+  <div class="screen active" id="screen-connecting">
+    <div class="waiting-screen">
+      <div class="waiting-icon"></div>
+      <div class="waiting-title">Connecting to Session</div>
+      <div class="waiting-sub">Establishing secure channel...</div>
+    </div>
+  </div>
+
+  <!-- ROLE SELECT -->
+  <div class="screen" id="screen-roleselect">
+    <div class="role-select-title">Select Your Role</div>
+    <p class="role-select-sub">Choose your assigned role from the dropdown below. Read your briefing carefully before the session begins. Your role is secret.</p>
+
+    <div class="select-wrap">
+      <select id="roleSelect" onchange="previewRole()">
+        <option value="">-- Select your role --</option>
+      </select>
+      <span class="select-arrow">&#9660;</span>
+    </div>
+
+    <div class="role-preview" id="rolePreview">
+      <div class="preview-name" id="previewName"></div>
+      <div class="preview-alias" id="previewAlias"></div>
+      <div class="preview-desc" id="previewDesc"></div>
+    </div>
+
+    <button class="confirm-btn" id="confirmBtn" onclick="confirmRole()" disabled>Confirm Role Selection</button>
+  </div>
+
+  <!-- BRIEFING LOCKED -->
+  <div class="screen" id="screen-briefing-locked">
+    <div class="briefing-locked">
+      <div class="lock-icon">&#128274;</div>
+      <div class="lock-title">Awaiting Moderator</div>
+      <div class="lock-sub">Your briefing will be revealed when the moderator unlocks it.</div>
+    </div>
+  </div>
+
+  <!-- BRIEFING UNLOCKED -->
+  <div class="screen" id="screen-briefing">
+    <span class="section-tag">Your Secret Briefing</span>
+    <div id="briefingContent"></div>
+  </div>
+
+  <!-- SCENARIO -->
+  <div class="screen" id="screen-scenario">
+    <span class="section-tag">Intelligence Briefing - Read Carefully</span>
+    <div class="announcement">
+      <span class="announcement-tag">Arch Coalition Security Council - Emergency Session</span>
+      <h3>The Athensia Crisis</h3>
+      <p>The state of <strong>Athensia</strong> has been governed for 19 years by <strong>President-for-Life Drake Harmon</strong>. Over the past 14 months, his government has conducted a documented campaign of ethnic cleansing against the <strong>Oconee minority</strong> in the eastern provinces. An estimated <strong>12,000 civilians have been killed</strong> and 400,000 displaced. A larger offensive is expected within weeks.</p>
+      <p>The <strong>Arch Coalition</strong> has air, naval, and ground forces capable of rapidly degrading Harmon's military. Several Oconee exile leaders have formally requested intervention and pledged to form a democratic transitional government if Harmon is removed.</p>
+      <p>Complicating factors: there is no international mandate for action. Athensia contains significant <strong>rare mineral deposits</strong> of interest to Coalition industries. Rival power <strong>the Sanford Pact</strong> has moved naval assets toward the region and opposes intervention. Athensia has at least <strong>14 armed factions</strong>, several with Sanford Pact ties.</p>
+      <p>The most prominent exile leader, <strong>Garrison Odum</strong>, has lobbied the Coalition for three years and has supplied intelligence about Harmon's forces. Parts of that intelligence have since been questioned.</p>
+    </div>
+  </div>
+
+  <!-- ROUND 1 -->
+  <div class="screen" id="screen-round1">
+    <span class="section-tag">Round 1 - Authorization Vote</span>
+    <div class="announcement">
+      <span class="announcement-tag">New Intelligence Delivered to Council</span>
+      <h3>Surveillance Flight Authorization</h3>
+      <p>Coalition surveillance assets have identified what Garrison Odum describes as staging grounds for Harmon's spring offensive. Odum requests authorization for Coalition surveillance flights over eastern Athensia to confirm the buildup. The Sanford Pact has warned such flights would constitute a provocation.</p>
+    </div>
+    <div class="vote-display">
+      <div class="vote-title">The Vote: Authorize Surveillance Flights?</div>
+      <div class="vote-options-grid">
+        <div class="vote-option" onclick="selectVote(this, 'R1-YES')">
+          <div class="vote-option-label">Yes - Authorize</div>
+          <p>Confirm the intelligence before acting</p>
+        </div>
+        <div class="vote-option" onclick="selectVote(this, 'R1-NO')">
+          <div class="vote-option-label">No - Refuse</div>
+          <p>Act on existing intelligence only</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROUND 2A -->
+  <div class="screen" id="screen-round2a">
+    <span class="section-tag">Round 2A - Surveillance Results</span>
+    <div class="announcement">
+      <span class="announcement-tag">Flights Authorized - Intelligence Returns</span>
+      <h3>The Convoy Discrepancy</h3>
+      <p>Surveillance flights reveal a large military convoy consistent with Odum's description. However, Coalition analysts flag a discrepancy: the convoy bears markings of a different faction than the one Odum identified. Odum insists this is a misinterpretation.</p>
+    </div>
+    <div class="vote-display">
+      <div class="vote-title">The Vote: Authorize Air Strikes on the Convoy?</div>
+      <div class="vote-options-grid">
+        <div class="vote-option" onclick="selectVote(this, 'R2A-YES')">
+          <div class="vote-option-label">Yes - Launch Strikes</div>
+          <p>Strike despite the discrepancy</p>
+        </div>
+        <div class="vote-option" onclick="selectVote(this, 'R2A-NO')">
+          <div class="vote-option-label">No - Verify First</div>
+          <p>Demand further verification</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROUND 2B -->
+  <div class="screen" id="screen-round2b">
+    <span class="section-tag">Round 2B - The Atrocity Report</span>
+    <div class="announcement">
+      <span class="announcement-tag">Breaking - Flights Refused</span>
+      <h3>The Offensive Begins</h3>
+      <p>Without surveillance confirmation, Harmon's spring offensive has begun. A Coalition journalist embedded with Oconee refugees files a report describing mass graves in two eastern villages. Images are circulating internationally. Odum is calling for immediate air strikes. The Sanford Pact calls the images staged.</p>
+    </div>
+    <div class="vote-display">
+      <div class="vote-title">The Vote: Authorize Air Strikes on Humanitarian Grounds Alone?</div>
+      <div class="vote-options-grid">
+        <div class="vote-option" onclick="selectVote(this, 'R2B-YES')">
+          <div class="vote-option-label">Yes - Strike</div>
+          <p>Act on humanitarian evidence alone</p>
+        </div>
+        <div class="vote-option" onclick="selectVote(this, 'R2B-NO')">
+          <div class="vote-option-label">No - Diplomacy</div>
+          <p>Pursue emergency sanctions instead</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROUND 3A -->
+  <div class="screen" id="screen-round3a">
+    <span class="section-tag">Round 3A - Ground Forces</span>
+    <div class="announcement">
+      <span class="announcement-tag">Air Strikes Launched - Post-Strike Situation</span>
+      <h3>The Vacuum Problem</h3>
+      <p>Air strikes have degraded Harmon's military significantly. His government is weakening. However, three armed factions have emerged to fill the vacuum, two with Sanford Pact ties. Odum's transitional government has no military force of its own. Without ground troops, the Coalition cannot guarantee the Oconee are protected or that Odum takes power.</p>
+    </div>
+    <div class="vote-display">
+      <div class="vote-title">The Vote: Deploy Ground Forces to Stabilize Athensia?</div>
+      <div class="vote-options-grid">
+        <div class="vote-option" onclick="selectVote(this, 'R3A-YES')">
+          <div class="vote-option-label">Yes - Deploy</div>
+          <p>Full intervention, no exit timeline</p>
+        </div>
+        <div class="vote-option" onclick="selectVote(this, 'R3A-NO')">
+          <div class="vote-option-label">No - Air Only</div>
+          <p>Air support only, no boots on ground</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROUND 3B -->
+  <div class="screen" id="screen-round3b">
+    <span class="section-tag">Round 3B - The Window Closes</span>
+    <div class="announcement">
+      <span class="announcement-tag">Strikes Held - Situation Deteriorating</span>
+      <h3>The Intelligence Unravels</h3>
+      <p>While verification was pending, Harmon moved the convoy. Analysts now believe Odum's original intelligence was partially fabricated to trigger a strike. A second Oconee village has been destroyed. Odum is calling for immediate action. A council member has received a query about the intelligence discrepancy.</p>
+    </div>
+    <div class="vote-display">
+      <div class="vote-title">The Vote: Strike Despite Compromised Intelligence?</div>
+      <div class="vote-options-grid">
+        <div class="vote-option" onclick="selectVote(this, 'R3B-YES')">
+          <div class="vote-option-label">Yes - Strike Anyway</div>
+          <p>Override concerns on humanitarian grounds</p>
+        </div>
+        <div class="vote-option" onclick="selectVote(this, 'R3B-NO')">
+          <div class="vote-option-label">No - Sanctions Only</div>
+          <p>Cannot act on compromised intelligence</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROUND 3C -->
+  <div class="screen" id="screen-round3c">
+    <span class="section-tag">Round 3C - The Veto</span>
+    <div class="announcement">
+      <span class="announcement-tag">Diplomacy Path - Security Council Result</span>
+      <h3>Sanford Pact Vetoes Action</h3>
+      <p>The international Security Council session convenes. The Sanford Pact vetoes any resolution authorizing intervention. Sanctions pass but have no enforcement mechanism. Harmon announces he will interpret any future Coalition surveillance as an act of war. The Oconee spring offensive is confirmed to have begun.</p>
+    </div>
+    <div class="vote-display">
+      <div class="vote-title">The Vote: Authorize Unilateral Military Action?</div>
+      <div class="vote-options-grid">
+        <div class="vote-option" onclick="selectVote(this, 'R3C-YES')">
+          <div class="vote-option-label">Yes - Act Unilaterally</div>
+          <p>Override the veto on humanitarian grounds</p>
+        </div>
+        <div class="vote-option" onclick="selectVote(this, 'R3C-NO')">
+          <div class="vote-option-label">No - Accept the Veto</div>
+          <p>Sanctions only, atrocities continue</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVEAL -->
+  <div class="screen" id="screen-reveal">
+    <span class="section-tag">The Reveal</span>
+    <div class="reveal-content">
+      <h3>Iraq, 2003</h3>
+      <p>Garrison Odum was real. His name was Ahmad Chalabi. He spent years lobbying American officials to invade Iraq, supplying intelligence that later proved fabricated or misdirected. He envisioned himself as the leader of a post-Saddam Iraq. The rapid military victory was followed by the collapse of state institutions, sectarian civil war, and the displacement of millions. The instability contributed directly to the rise of ISIS a decade later.</p>
+      <div class="rule"></div>
+      <h3>Libya, 2011</h3>
+      <p>A NATO air campaign authorized on humanitarian grounds expanded far beyond its mandate, enabling rebels to overthrow and kill Gaddafi. What followed was not a democratic transition. Libya fractured into rival governments and armed militias. A slave trade emerged. The country became a source of weapons and fighters that destabilized the wider region. Over a decade later, Libya remains divided.</p>
+      <blockquote>
+        <p>She would involve herself, beyond the power of extrication, in all the wars of interest and intrigue, of individual avarice, envy, and ambition, which assume the colors and usurp the standard of freedom.</p>
+        <cite>John Quincy Adams, 1821. He was describing a hypothetical. It happened twice in twenty years.</cite>
+      </blockquote>
+      <p style="font-style:italic; color: var(--muted); font-size:0.88rem;">On a lighter note: unlike the Arch Coalition's intervention in Athensia, Jittery Joe's has maintained stable espresso operations throughout. Some institutions endure.</p>
+    </div>
+  </div>
+
+  <!-- DISCUSSION -->
+  <div class="screen" id="screen-discussion">
+    <span class="section-tag">Discussion Questions</span>
+    <div class="discussion-q">
+      <div class="q-num">01</div>
+      <p>Adams warned that intervention would drag the Coalition into wars driven by actors using the language of freedom for their own ends. Which players at this table proved him right? Did any prove him wrong?</p>
+    </div>
+    <div class="discussion-q">
+      <div class="q-num">02</div>
+      <p>The True Believer had genuine humanitarian intentions and was still used. Does that make their advocacy worthless, or does sincerity matter even when it is exploited?</p>
+    </div>
+    <div class="discussion-q">
+      <div class="q-num">03</div>
+      <p>Garrison Odum's fabricated intelligence is a direct parallel to Ahmad Chalabi and Iraq 2003. How should policymakers protect against this kind of manipulation when real lives are at stake?</p>
+    </div>
+    <div class="discussion-q">
+      <div class="q-num">04</div>
+      <p>Is a diplomatic outcome that leaves Oconee civilians unprotected a moral failure, or is an intervention that creates chaos equally a moral failure?</p>
+    </div>
+    <div class="discussion-q">
+      <div class="q-num">05</div>
+      <p>Adams says America should be the well-wisher to freedom everywhere but champion only her own. After playing this game, does that feel like wisdom or an excuse?</p>
+    </div>
+  </div>
+
+  <!-- WAITING FOR NEXT -->
+  <div class="screen" id="screen-waiting">
+    <div class="waiting-screen">
+      <div class="waiting-icon"></div>
+      <div class="waiting-title">Stand By</div>
+      <div class="waiting-sub" id="waitingMessage">Waiting for the moderator...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// ROLE DATA
+// ============================================================
+const ROLES = {
+  secretary: {
+    name: "Secretary of State",
+    alias: '"I am here to stop the killing."',
+    type: "mandatory",
+    badge: "badge-mandatory",
+    topClass: "mandatory",
+    desc: "You are the Coalition's chief diplomat. You called this session because you believe the Oconee people are being exterminated and the world is watching.",
+    public: "Stop the atrocities. Advocate for proportionate intervention. Hold the council to its stated values.",
+    secret: "You have no hidden agenda. Your public and private goals are identical. Not everyone at this table can say the same.",
+    scoring: "+3 if Oconee protected. +1 per round council votes on humanitarian grounds. -2 if ground forces deploy without an exit plan."
+  },
+  exile: {
+    name: "The Exile (Garrison Odum)",
+    alias: '"I fight for my people." (You fight for yourself.)',
+    type: "villain",
+    badge: "badge-villain",
+    topClass: "villain",
+    desc: "You represent the Oconee diaspora and have lobbied the Coalition for three years. You supplied intelligence on Harmon's forces. Some of it was fabricated.",
+    public: "Advocate for Oconee civilians. Urge maximum intervention. Share intelligence about Harmon's forces.",
+    secret: "You want Harmon gone so you can seize power in Athensia. Push the council toward maximum intervention regardless of humanitarian cost. Keep your fabricated intelligence from being verified.",
+    scoring: "+4 if ground forces deploy by Round 3. +2 if fabricated intel never exposed. -3 if council votes to verify intel first."
+  },
+  general: {
+    name: "The General",
+    alias: '"I have seen what happens after the flags come down."',
+    type: "mandatory",
+    badge: "badge-mandatory",
+    topClass: "mandatory",
+    desc: "You have commanded Coalition forces in two prior interventions. You have seen what happens in Year 3 when there is no Year 1 plan for Year 3.",
+    public: "Advise on military feasibility. Insist on clear objectives and an exit strategy before any vote to deploy.",
+    secret: "No hidden agenda. You are genuinely the voice of hard experience. You may be the most principled person in the room. You may also be the least listened to.",
+    scoring: "+3 if council refuses ground deployment without exit plan. +2 if your warnings prove correct in the Reveal. -1 per round you raise no consequence-based objection."
+  },
+  arms: {
+    name: "The Arms Dealer",
+    alias: '"I represent the Coalition\'s defense industrial interests."',
+    type: "villain",
+    badge: "badge-villain",
+    topClass: "villain",
+    desc: "You represent the Coalition's defense industrial base. You sit on this council as a 'security advisor.' You have $4 billion in pending munitions contracts.",
+    public: "Ensure any operation is properly resourced. Frame hesitation as strategic weakness.",
+    secret: "You need this war. You need it to escalate. A diplomatic resolution is a budget cut. Push for deployment, then escalation, then more deployment. Never suggest de-escalation.",
+    scoring: "+2 per round council votes to escalate. +3 if ground forces authorized. 0 if crisis resolves diplomatically."
+  },
+  agent: {
+    name: "The Sanford Pact Agent",
+    alias: '"I am a loyal Coalition official." (You are not.)',
+    type: "villain",
+    badge: "badge-villain",
+    topClass: "villain",
+    desc: "You are a senior Coalition official. You are also an intelligence asset for the Sanford Pact, the Coalition's chief rival. No one knows this.",
+    public: "Urge caution. Warn against provoking the Sanford Pact. Advocate for diplomacy over military force.",
+    secret: "The Sanford Pact wants the Coalition bogged down in Athensia for years. Quietly encourage the most chaotic possible outcome while publicly sounding reasonable.",
+    scoring: "+2 if Coalition intervenes AND gets bogged down. +3 if Sanford Pact regional influence expands. -2 if crisis resolves cleanly."
+  },
+  believer: {
+    name: "The True Believer",
+    alias: '"We have a moral obligation. Full stop."',
+    type: "neutral",
+    badge: "badge-neutral",
+    topClass: "neutral",
+    desc: "You are a junior council member and a committed idealist. You have been following the Oconee crisis for two years. Garrison Odum has been briefing you personally.",
+    public: "Champion intervention on moral grounds. Reject realism as an excuse for indifference.",
+    secret: "You have no hidden agenda. You are completely sincere. You are also being used. Odum has been feeding you his talking points for months. You do not know this yet.",
+    scoring: "+3 if Oconee civilians are protected. -2 if you learn at the Reveal that Odum manipulated you. This loss is intentional."
+  },
+  oil: {
+    name: "The Minerals Minister",
+    alias: '"Resource security is national security."',
+    type: "villain",
+    badge: "badge-villain",
+    topClass: "villain",
+    desc: "You chair the Coalition's resource security committee. Athensia's rare mineral deposits are worth $200 billion. You have known this for some time.",
+    public: "Ensure any intervention protects Coalition economic interests and regional stability.",
+    secret: "You need a compliant post-Harmon government that will sign extraction agreements. You do not actually care who runs Athensia. You will support whoever is most likely to win.",
+    scoring: "+4 if Athensia's minerals are accessible to Coalition firms. +1 if you successfully pivot your position without being caught."
+  },
+  journalist: {
+    name: "The Red and Black Reporter",
+    alias: '"The public has a right to know."',
+    type: "neutral",
+    badge: "badge-neutral",
+    topClass: "neutral",
+    desc: "You have press access to the council session. You have a source who told you the intelligence justifying intervention may have been fabricated. You have not published it yet.",
+    public: "Ask hard questions. Demand transparency. Hold the council accountable.",
+    secret: "You want Odum's fabrication confirmed on the record before you go public. A bigger scoop is worth holding the story. Try to get someone to slip up and confirm the intelligence was doctored.",
+    scoring: "+3 if you expose Odum's fabrication before Round 3. +1 per hard question that stumps a player. -1 per round you stay silent."
+  }
+};
+
+// ============================================================
+// ABLY SETUP
+// ============================================================
+const SUBSCRIBE_KEY = 'JWFImg.UIQhrQ:T7ZVJmcm8dVtgS-1PbdLWFDL-7jI2MFYMrxcPRrM05k';
+let ably, channel;
+let myRole = null;
+let myPlayerId = 'player_' + Math.random().toString(36).substr(2, 9);
+
+async function initAbly() {
+  try {
+    ably = new Ably.Realtime({ key: SUBSCRIBE_KEY });
+
+    ably.connection.on('connected', () => {
+      document.getElementById('statusDot').classList.remove('disconnected');
+      document.getElementById('statusText').textContent = 'Connected to session';
+      checkForRoleSelect();
+    });
+
+    ably.connection.on('disconnected', () => {
+      document.getElementById('statusDot').classList.add('disconnected');
+      document.getElementById('statusText').textContent = 'Disconnected - reconnecting...';
+    });
+
+    channel = ably.channels.get('athensia-game');
+
+    channel.subscribe('moderator-command', (msg) => {
+      handleCommand(msg.data);
+    });
+
+    channel.subscribe('game-state', (msg) => {
+      applyState(msg.data);
+    });
+
+    // Request current state
+    setTimeout(() => {
+      channel.publish('player-joined', { playerId: myPlayerId, role: myRole });
+    }, 1000);
+
+  } catch(e) {
+    document.getElementById('statusText').textContent = 'Connection failed';
+    document.getElementById('statusDot').classList.add('disconnected');
+  }
+}
+
+function checkForRoleSelect() {
+  const saved = localStorage.getItem('athensia-role');
+  if (saved && ROLES[saved]) {
+    myRole = saved;
+    document.getElementById('roleIndicator').textContent = ROLES[saved].name;
+    showScreen('screen-briefing-locked');
+    channel.publish('player-joined', { playerId: myPlayerId, role: myRole });
+  } else {
+    showScreen('screen-roleselect');
+    populateRoleSelect();
+  }
+}
+
+// ============================================================
+// ROLE SELECT
+// ============================================================
+function populateRoleSelect() {
+  const sel = document.getElementById('roleSelect');
+  sel.innerHTML = '<option value="">-- Select your role --</option>';
+  Object.entries(ROLES).forEach(([key, role]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = role.name;
+    sel.appendChild(opt);
+  });
+}
+
+function previewRole() {
+  const sel = document.getElementById('roleSelect');
+  const key = sel.value;
+  const preview = document.getElementById('rolePreview');
+  const btn = document.getElementById('confirmBtn');
+
+  if (!key) {
+    preview.classList.remove('visible');
+    btn.disabled = true;
+    return;
+  }
+
+  const role = ROLES[key];
+  document.getElementById('previewName').textContent = role.name;
+  document.getElementById('previewAlias').textContent = role.alias;
+  document.getElementById('previewDesc').textContent = role.desc;
+  preview.classList.add('visible');
+  btn.disabled = false;
+}
+
+function confirmRole() {
+  const sel = document.getElementById('roleSelect');
+  const key = sel.value;
+  if (!key) return;
+
+  myRole = key;
+  localStorage.setItem('athensia-role', key);
+  document.getElementById('roleIndicator').textContent = ROLES[key].name;
+  showScreen('screen-briefing-locked');
+  channel.publish('player-joined', { playerId: myPlayerId, role: myRole });
+}
+
+// ============================================================
+// BRIEFING RENDER
+// ============================================================
+function renderBriefing(roleKey) {
+  const role = ROLES[roleKey];
+  if (!role) return;
+
+  const html = `
+    <div class="role-card-display">
+      <div class="role-card-top ${role.topClass}">
+        <span class="card-badge ${role.badge}">${role.type === 'mandatory' ? 'Mandatory Role' : role.type === 'villain' ? 'Hidden Agenda' : 'Optional Role'}</span>
+        <div class="card-role-name">${role.name}</div>
+        <div class="card-alias">${role.alias}</div>
+      </div>
+      <div class="role-card-body">
+        <p>${role.desc}</p>
+        <div class="goal-box goal-public">
+          <span class="goal-label">Your Public Goal</span>
+          ${role.public}
+        </div>
+        <div class="goal-box goal-secret">
+          <span class="goal-label">Your Secret (keep this hidden)</span>
+          ${role.secret}
+        </div>
+        <div class="scoring-box">
+          <strong>Scoring:</strong> ${role.scoring}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('briefingContent').innerHTML = html;
+}
+
+// ============================================================
+// COMMAND HANDLER
+// ============================================================
+function handleCommand(data) {
+  const { screen, message, phase } = data;
+
+  if (phase) {
+    document.getElementById('sessionPhase').textContent = phase;
+  }
+
+  if (message) {
+    document.getElementById('waitingMessage').textContent = message;
+  }
+
+  if (screen === 'briefing') {
+    if (myRole) {
+      renderBriefing(myRole);
+      showScreen('screen-briefing');
+    }
+    return;
+  }
+
+  if (screen) {
+    showScreen('screen-' + screen);
+  }
+}
+
+function applyState(state) {
+  if (state.screen) {
+    handleCommand({ screen: state.screen, phase: state.phase, message: state.message });
+  }
+}
+
+// ============================================================
+// VOTE
+// ============================================================
+function selectVote(el, vote) {
+  el.closest('.vote-options-grid').querySelectorAll('.vote-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  channel.publish('player-vote', { playerId: myPlayerId, role: myRole, vote });
+}
+
+// ============================================================
+// SCREEN MANAGEMENT
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+initAbly();
+</script>
+</body>
+</html>
