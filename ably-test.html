@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ably Test</title>
+<script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+<style>
+body { font-family: monospace; background: #111; color: #eee; padding: 2rem; font-size: 1rem; }
+#log { margin-top: 1rem; }
+.ok { color: #2d8a4e; }
+.err { color: #f08090; }
+.info { color: #c9a227; }
+button { background: #ba0c2f; border: none; color: white; padding: 0.75rem 1.5rem; font-size: 1rem; cursor: pointer; margin-top: 1rem; margin-right: 0.5rem; }
+</style>
+</head>
+<body>
+<h2>Ably Connection Test</h2>
+<p>This will test if Ably can connect and send messages.</p>
+<button onclick="testSub()">Test Subscribe (Player Key)</button>
+<button onclick="testPub()">Test Publish (Moderator Key)</button>
+<div id="log"></div>
+
+<script>
+const ROOT_KEY = 'JWFImg.DNTvlQ:f4__2r2m-rMVXfpub2J_Jn-AzkwMVFEuS1KVTrNRRVQs';
+const SUB_KEY  = 'JWFImg.UIQhrQ:T7ZVJmcm8dVtgS-1PbdLWFDL-7jI2MFYMrxcPRrM05k';
+
+function log(msg, cls) {
+  const d = document.getElementById('log');
+  const p = document.createElement('p');
+  p.className = cls || 'info';
+  p.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+  d.appendChild(p);
+}
+
+function testSub() {
+  log('Connecting with subscribe key...', 'info');
+  try {
+    const ably = new Ably.Realtime({ key: SUB_KEY });
+    ably.connection.on('connected', () => {
+      log('SUCCESS: Connected with subscribe key', 'ok');
+      const ch = ably.channels.get('athensia-game');
+      ch.subscribe('test', msg => log('Received message: ' + JSON.stringify(msg.data), 'ok'));
+      log('Subscribed to channel athensia-game', 'ok');
+    });
+    ably.connection.on('failed', (err) => log('FAILED: ' + JSON.stringify(err), 'err'));
+    ably.connection.on('disconnected', () => log('Disconnected', 'err'));
+  } catch(e) {
+    log('ERROR: ' + e.message, 'err');
+  }
+}
+
+function testPub() {
+  log('Connecting with root key...', 'info');
+  try {
+    const ably = new Ably.Realtime({ key: ROOT_KEY });
+    ably.connection.on('connected', () => {
+      log('SUCCESS: Connected with root key', 'ok');
+      const ch = ably.channels.get('athensia-game');
+      ch.publish('test', { hello: 'world', time: Date.now() }, (err) => {
+        if (err) log('Publish FAILED: ' + err.message, 'err');
+        else log('SUCCESS: Published test message', 'ok');
+      });
+    });
+    ably.connection.on('failed', (err) => log('FAILED: ' + JSON.stringify(err), 'err'));
+  } catch(e) {
+    log('ERROR: ' + e.message, 'err');
+  }
+}
+</script>
+</body>
+</html>
