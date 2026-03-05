@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>The Athensia File</title>
+<script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0f14; --surface: #13161e; --surface2: #1a1e2a; --surface3: #1e2538;
+  --red: #ba0c2f; --red-dim: #7a0820; --gold: #c9a227; --gold-dim: #7a6118;
+  --text: #e2e8f0; --muted: #7a8599; --border: #252b38; --green: #2d8a4e;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Crimson Pro',Georgia,serif; font-weight:300; min-height:100vh; }
+body::after { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.012) 3px,rgba(0,0,0,0.012) 4px); pointer-events:none; z-index:9999; }
+
+/* ── MODE SELECT ── */
+#modeSelect { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; gap:1.5rem; padding:2rem; text-align:center; }
+.ms-eyebrow { font-size:0.65rem; letter-spacing:0.28em; text-transform:uppercase; color:var(--gold); }
+.ms-title { font-family:'Bebas Neue',sans-serif; font-size:clamp(3rem,8vw,5rem); letter-spacing:0.08em; color:white; line-height:0.9; }
+.ms-sub { font-style:italic; color:var(--muted); font-size:0.95rem; }
+.ms-btns { display:grid; grid-template-columns:1fr 1fr; gap:1rem; width:100%; max-width:380px; margin-top:0.5rem; }
+.ms-btn { background:var(--surface); border:1px solid var(--border); color:var(--text); padding:1.5rem 1rem; cursor:pointer; transition:all 0.15s; text-align:center; }
+.ms-btn:hover { border-color:var(--gold); }
+.ms-btn.primary { background:var(--red); border-color:var(--red); color:white; }
+.ms-btn.primary:hover { background:var(--red-dim); }
+.ms-btn-lbl { font-family:'Bebas Neue',sans-serif; font-size:1.4rem; letter-spacing:0.06em; display:block; margin-bottom:0.2rem; }
+.ms-btn-sub { font-size:0.72rem; color:rgba(255,255,255,0.5); font-style:italic; }
+
+/* ── PASSWORD ── */
+#pwScreen { display:none; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; gap:1rem; padding:2rem; text-align:center; }
+.pw-title { font-family:'Bebas Neue',sans-serif; font-size:2rem; letter-spacing:0.06em; }
+input[type=password] { background:var(--surface); border:1px solid var(--border); color:var(--text); padding:0.75rem 1rem; font-family:'Crimson Pro',serif; font-size:1rem; width:100%; max-width:280px; outline:none; }
+input[type=password]:focus { border-color:var(--gold); }
+.pw-go { background:var(--red); border:none; color:white; padding:0.75rem 2rem; font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:0.08em; cursor:pointer; width:100%; max-width:280px; }
+.pw-err { color:#f08090; font-size:0.82rem; display:none; }
+.back-link { background:none; border:none; color:var(--muted); font-family:'Crimson Pro',serif; font-size:0.85rem; cursor:pointer; margin-top:0.25rem; }
+
+/* ── PLAYER VIEW ── */
+#playerView { display:none; flex-direction:column; min-height:100vh; }
+.p-header { background:linear-gradient(135deg,#8a0022,var(--red),#8a0022); padding:1rem 1.5rem; text-align:center; border-bottom:2px solid var(--gold); }
+.p-header-sub { font-size:0.6rem; letter-spacing:0.25em; text-transform:uppercase; color:rgba(255,255,255,0.6); margin-bottom:0.25rem; }
+.p-header-title { font-family:'Bebas Neue',sans-serif; font-size:1.8rem; letter-spacing:0.1em; color:white; }
+.p-header-role { display:inline-block; margin-top:0.35rem; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); padding:0.15rem 0.75rem; font-size:0.65rem; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.8); }
+.p-statusbar { background:#000; border-bottom:1px solid var(--border); padding:0.35rem 1rem; display:flex; align-items:center; justify-content:space-between; }
+.sdot { width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; margin-right:0.35rem; animation:pd 2s ease infinite; }
+.sdot.off { background:var(--red); animation:none; }
+@keyframes pd { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.stext { font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+.p-body { flex:1; padding:1.25rem; max-width:660px; margin:0 auto; width:100%; }
+
+/* ── SCREENS ── */
+.scr { display:none; animation:fu 0.3s ease; }
+.scr.active { display:block; }
+@keyframes fu { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+.wait-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:50vh; text-align:center; gap:1.25rem; }
+.spinner { width:50px; height:50px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:sp 1.2s linear infinite; }
+@keyframes sp { to{transform:rotate(360deg);} }
+.wt { font-family:'Bebas Neue',sans-serif; font-size:1.7rem; letter-spacing:0.06em; }
+.ws { font-size:0.88rem; color:var(--muted); font-style:italic; }
+
+/* ── ROLE SELECT ── */
+.rs-title { font-family:'Bebas Neue',sans-serif; font-size:1.9rem; letter-spacing:0.06em; margin-bottom:0.35rem; }
+.rs-sub { font-size:0.88rem; color:var(--muted); font-style:italic; margin-bottom:1.25rem; line-height:1.6; }
+.sel-wrap { position:relative; margin-bottom:0.75rem; }
+select { width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text); padding:0.8rem 1rem; font-family:'Crimson Pro',serif; font-size:1rem; appearance:none; cursor:pointer; outline:none; }
+select:focus { border-color:var(--gold); }
+.sel-arr { position:absolute; right:1rem; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+.confirm-btn { width:100%; background:var(--red); border:none; color:white; padding:0.9rem; font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:0.1em; cursor:pointer; transition:background 0.2s; margin-top:0.4rem; }
+.confirm-btn:hover { background:var(--red-dim); }
+.confirm-btn:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
+.rp { margin-top:1rem; border:1px solid var(--border); padding:1rem; background:var(--surface); display:none; }
+.rp.vis { display:block; }
+.rp-name { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:0.05em; margin-bottom:0.2rem; }
+.rp-alias { font-style:italic; font-size:0.85rem; color:var(--muted); }
+
+/* ── BRIEFING CARD ── */
+.brief-card { border:1px solid var(--border); overflow:hidden; }
+.bc-top { padding:1.25rem 1.5rem; background:var(--surface2); border-bottom:1px solid var(--border); position:relative; }
+.bc-top::before { content:''; position:absolute; top:0;left:0;right:0; height:3px; }
+.bc-top.mandatory::before { background:var(--gold); }
+.bc-top.villain::before { background:var(--red); }
+.bc-top.neutral::before { background:var(--border); }
+.bc-badge { font-size:0.56rem; letter-spacing:0.2em; text-transform:uppercase; padding:0.15rem 0.5rem; display:inline-block; margin-bottom:0.5rem; }
+.badge-m { background:rgba(201,162,39,0.15); color:var(--gold); }
+.badge-v { background:rgba(186,12,47,0.2); color:#f08090; }
+.badge-n { background:var(--surface); color:var(--muted); border:1px solid var(--border); }
+.bc-name { font-family:'Bebas Neue',sans-serif; font-size:1.8rem; letter-spacing:0.06em; line-height:1; }
+.bc-alias { font-style:italic; font-size:0.88rem; color:var(--muted); margin-top:0.25rem; }
+.bc-body { padding:1.25rem 1.5rem; background:var(--surface); }
+.bc-desc { font-size:0.92rem; line-height:1.75; color:#b8c4d4; margin-bottom:1rem; }
+.bc-chips { display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem; }
+.chip { font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; padding:0.2rem 0.6rem; border:1px solid; }
+.chip-pub { border-color:var(--green); color:var(--green); }
+.chip-sec { border-color:var(--red); color:#f08090; }
+.bc-goals { display:grid; gap:0.6rem; margin-bottom:0.75rem; }
+.goal { padding:0.65rem 0.9rem; font-size:0.88rem; line-height:1.65; color:#99a8bb; }
+.goal-pub { background:rgba(45,138,78,0.1); border-left:2px solid var(--green); }
+.goal-sec { background:rgba(186,12,47,0.1); border-left:2px solid var(--red); }
+.goal-lbl { font-size:0.56rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:0.25rem; }
+.bc-score { border-top:1px solid var(--border); padding-top:0.75rem; margin-top:0.25rem; font-size:0.8rem; color:var(--muted); line-height:1.7; }
+.bc-score strong { color:var(--gold); }
+
+/* ── INTEL / SCENARIO ── */
+.intel-tag { font-size:0.58rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--gold); display:block; margin-bottom:0.5rem; }
+.intel-box { border-left:3px solid var(--gold); background:rgba(201,162,39,0.05); padding:1.1rem 1.25rem; margin-bottom:1rem; }
+.intel-box h3 { font-family:'Bebas Neue',sans-serif; font-size:1.4rem; letter-spacing:0.05em; margin-bottom:0.5rem; }
+.intel-box p { font-size:0.9rem; line-height:1.75; color:#b8c4d4; margin-bottom:0.6rem; }
+.intel-box p:last-child { margin-bottom:0; }
+.intel-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1rem; }
+.intel-fact { background:var(--surface2); border:1px solid var(--border); padding:0.75rem; }
+.intel-fact-lbl { font-size:0.56rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:0.3rem; display:block; }
+.intel-fact-val { font-size:0.88rem; color:var(--text); line-height:1.5; }
+
+/* ── GLOBAL EVENT ── */
+.event-box { border:2px solid var(--red); background:rgba(186,12,47,0.08); padding:1.1rem 1.25rem; margin-bottom:1rem; position:relative; animation:flashin 0.4s ease; }
+@keyframes flashin { from{opacity:0;transform:scale(0.97);} to{opacity:1;transform:scale(1);} }
+.event-box::before { content:'BREAKING'; position:absolute; top:-0.55rem; left:1rem; background:var(--red); color:white; font-size:0.56rem; letter-spacing:0.2em; padding:0.1rem 0.4rem; }
+.event-box h3 { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:0.05em; color:#f08090; margin-bottom:0.5rem; }
+.event-box p { font-size:0.88rem; line-height:1.7; color:#b8c4d4; margin-bottom:0; }
+
+/* ── VOTE ── */
+.vote-wrap { border:1px solid var(--border); background:var(--surface2); padding:1.1rem 1.25rem; margin-top:1rem; }
+.vote-q { font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:0.04em; margin-bottom:0.75rem; }
+.vote-opts { display:grid; gap:0.6rem; }
+.vote-opt { border:1px solid var(--border); padding:0.8rem 1rem; background:var(--surface); cursor:pointer; transition:all 0.15s; display:flex; align-items:flex-start; gap:0.75rem; }
+.vote-opt:hover { border-color:var(--gold); }
+.vote-opt.selected { border-color:var(--red); background:rgba(186,12,47,0.1); }
+.vo-letter { font-family:'Bebas Neue',sans-serif; font-size:1.2rem; color:var(--muted); flex-shrink:0; line-height:1; margin-top:0.1rem; }
+.vote-opt.selected .vo-letter { color:#f08090; }
+.vo-text { flex:1; }
+.vo-label { font-family:'Bebas Neue',sans-serif; font-size:0.95rem; letter-spacing:0.04em; margin-bottom:0.15rem; }
+.vo-desc { font-size:0.78rem; color:var(--muted); line-height:1.5; }
+.voted-confirm { display:none; margin-top:0.75rem; padding:0.6rem 1rem; background:rgba(45,138,78,0.15); border-left:2px solid var(--green); font-size:0.82rem; color:var(--green); }
+.voted-confirm.show { display:block; }
+
+/* ── REVEAL ── */
+.reveal-section { margin-bottom:1.5rem; }
+.reveal-section h3 { font-family:'Bebas Neue',sans-serif; font-size:1.4rem; letter-spacing:0.05em; color:var(--red); margin-bottom:0.5rem; }
+.reveal-section p { font-size:0.9rem; line-height:1.75; color:#b8c4d4; margin-bottom:0.75rem; }
+.score-card { background:var(--surface2); border:1px solid var(--border); padding:1rem 1.25rem; margin-bottom:1rem; text-align:center; }
+.score-num { font-family:'Bebas Neue',sans-serif; font-size:3.5rem; color:var(--gold); line-height:1; }
+.score-lbl { font-size:0.65rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-top:0.25rem; }
+blockquote { border-left:3px solid var(--red); padding:0.75rem 1.25rem; margin:1.25rem 0; background:rgba(186,12,47,0.07); }
+blockquote p { font-style:italic; font-size:0.88rem; color:#99a8bb; }
+blockquote cite { font-size:0.7rem; color:var(--muted); display:block; margin-top:0.25rem; }
+.rule { border:none; border-top:1px solid var(--border); margin:1.25rem 0; }
+.sec-tag { font-size:0.58rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--gold); display:block; margin-bottom:0.5rem; }
+.disc-q { border-bottom:1px solid var(--border); padding:0.9rem 0; }
+.disc-q:last-child { border-bottom:none; }
+.dq-num { font-family:'Bebas Neue',sans-serif; font-size:1.6rem; color:var(--border); line-height:1; margin-bottom:0.2rem; }
+.disc-q p { font-size:0.92rem; line-height:1.75; color:#b8c4d4; margin-bottom:0; }
+
+/* ── MODERATOR VIEW ── */
+#modView { display:none; flex-direction:column; height:100vh; overflow:hidden; }
+.mod-hdr { background:#000; border-bottom:2px solid var(--red); padding:0.55rem 1.25rem; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.mod-badge { background:var(--red); color:white; font-size:0.56rem; letter-spacing:0.2em; text-transform:uppercase; padding:0.18rem 0.5rem; }
+.mod-title { font-family:'Bebas Neue',sans-serif; font-size:1.25rem; letter-spacing:0.08em; color:white; margin-left:0.65rem; }
+.conn-row { display:flex; align-items:center; gap:0.4rem; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+.cdot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pd 2s ease infinite; }
+.cdot.off { background:var(--red); animation:none; }
+
+.phase-bar { background:var(--surface); border-bottom:1px solid var(--border); padding:0.45rem 1rem; display:flex; align-items:center; gap:0.35rem; overflow-x:auto; flex-shrink:0; white-space:nowrap; }
+.ph-btn { background:var(--surface2); border:1px solid var(--border); color:var(--muted); padding:0.28rem 0.65rem; font-family:'Crimson Pro',serif; font-size:0.65rem; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; transition:all 0.15s; }
+.ph-btn:hover { border-color:var(--gold); color:var(--gold); }
+.ph-btn.active { background:var(--red); border-color:var(--red); color:white; }
+.ph-arr { color:var(--border); font-size:0.7rem; flex-shrink:0; }
+
+.mod-body { display:grid; grid-template-columns:260px 1fr 270px; flex:1; min-height:0; overflow:hidden; }
+
+/* Left */
+.mod-left { background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+.panel-hdr { padding:0.65rem 1rem; border-bottom:1px solid var(--border); font-size:0.6rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--gold); background:var(--surface2); flex-shrink:0; }
+.p-list { flex:1; overflow-y:auto; padding:0.5rem; }
+.p-item { display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.65rem; border:1px solid var(--border); margin-bottom:0.35rem; background:var(--surface2); }
+.pdot { width:6px; height:6px; border-radius:50%; background:var(--green); flex-shrink:0; }
+.pdot.pending { background:var(--gold); }
+.pi-id { font-size:0.65rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pi-role { font-size:0.8rem; color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.p-count-bar { padding:0.4rem 1rem; font-size:0.68rem; color:var(--muted); border-top:1px solid var(--border); flex-shrink:0; }
+
+.qr-sec { padding:0.9rem; border-top:1px solid var(--border); text-align:center; flex-shrink:0; }
+.qr-lbl { font-size:0.56rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:0.6rem; }
+#qrcode { display:flex; justify-content:center; margin-bottom:0.4rem; }
+#qrcode img { border:3px solid white; display:block; }
+.qr-url { font-size:0.6rem; color:var(--muted); word-break:break-all; line-height:1.4; }
+
+/* Center */
+.mod-center { display:flex; flex-direction:column; overflow:hidden; }
+.c-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+.c-tab { background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:0.7rem 1rem; font-family:'Crimson Pro',serif; font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; transition:all 0.15s; margin-bottom:-1px; }
+.c-tab:hover { color:var(--text); }
+.c-tab.active { color:var(--gold); border-bottom-color:var(--gold); }
+.c-content { flex:1; overflow-y:auto; padding:1.1rem; }
+
+/* Vote tally display */
+.vote-tally-board { background:var(--surface2); border:1px solid var(--border); padding:1rem; margin-bottom:1.25rem; }
+.vtb-title { font-size:0.6rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--gold); margin-bottom:0.75rem; }
+.vtb-totals { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; margin-bottom:0.75rem; }
+.vtb-total { background:var(--surface); border:1px solid var(--border); padding:0.5rem; text-align:center; }
+.vtb-num { font-family:'Bebas Neue',sans-serif; font-size:1.8rem; line-height:1; }
+.vtb-lbl { font-size:0.56rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+.vtb-a { color:var(--green); }
+.vtb-b { color:#60a8f0; }
+.vtb-c { color:var(--gold); }
+.vtb-d { color:#f08090; }
+.vtb-rows { max-height:180px; overflow-y:auto; }
+.vtb-row { display:flex; align-items:center; justify-content:space-between; padding:0.3rem 0; border-bottom:1px solid var(--border); font-size:0.8rem; }
+.vtb-row:last-child { border-bottom:none; }
+.vtb-role { color:var(--muted); font-size:0.75rem; }
+.vtb-vote { font-weight:600; padding:0.1rem 0.4rem; font-size:0.72rem; letter-spacing:0.08em; }
+.vtb-vote.A { background:rgba(45,138,78,0.2); color:var(--green); }
+.vtb-vote.B { background:rgba(96,168,240,0.2); color:#60a8f0; }
+.vtb-vote.C { background:rgba(201,162,39,0.2); color:var(--gold); }
+.vtb-vote.D { background:rgba(240,128,144,0.2); color:#f08090; }
+
+.timer-block { background:var(--surface2); border:1px solid var(--border); padding:0.9rem; margin-bottom:1.25rem; }
+.t-disp { font-family:'Bebas Neue',sans-serif; font-size:3rem; letter-spacing:0.08em; color:var(--gold); text-align:center; line-height:1; margin-bottom:0.5rem; }
+.t-disp.urgent { color:var(--red); animation:blink 0.8s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.t-btns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.35rem; margin-bottom:0.5rem; }
+.t-btn { background:var(--surface); border:1px solid var(--border); color:var(--text); padding:0.35rem; font-family:'Crimson Pro',serif; font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; text-align:center; transition:all 0.15s; }
+.t-btn:hover { border-color:var(--gold); color:var(--gold); }
+.t-btn.go { background:var(--red); border-color:var(--red); color:white; }
+.presets { display:flex; gap:0.3rem; flex-wrap:wrap; }
+.preset { background:var(--surface); border:1px solid var(--border); color:var(--muted); padding:0.18rem 0.45rem; font-family:'Crimson Pro',serif; font-size:0.62rem; cursor:pointer; transition:all 0.15s; }
+.preset:hover { border-color:var(--gold); color:var(--gold); }
+
+.ctrl-sec { margin-bottom:1.25rem; }
+.ctrl-title { font-size:0.56rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--gold); margin-bottom:0.55rem; display:flex; align-items:center; gap:0.35rem; }
+.ctrl-title::after { content:''; flex:1; height:1px; background:var(--border); }
+.cmd-btn { display:flex; width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:0.6rem 0.9rem; font-family:'Crimson Pro',serif; font-size:0.85rem; text-align:left; cursor:pointer; margin-bottom:0.35rem; align-items:center; justify-content:space-between; gap:0.6rem; transition:all 0.15s; }
+.cmd-btn:hover { border-color:var(--gold); background:var(--surface3); }
+.cmd-btn.event-btn { border-color:var(--red-dim); }
+.cmd-btn.event-btn:hover { border-color:var(--red); background:rgba(186,12,47,0.08); }
+.cmd-lbl { font-size:0.85rem; color:var(--text); }
+.cmd-sub { font-size:0.68rem; color:var(--muted); font-style:italic; }
+.cmd-arr { color:var(--muted); font-size:0.72rem; flex-shrink:0; }
+.path-lbl { font-size:0.65rem; color:var(--muted); margin-bottom:0.3rem; }
+select.path-sel { width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:0.45rem 0.7rem; font-family:'Crimson Pro',serif; font-size:0.82rem; outline:none; cursor:pointer; margin-bottom:0.4rem; }
+select.path-sel:focus { border-color:var(--gold); }
+
+/* Right - script */
+.mod-right { background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+.script-wrap { flex:1; overflow-y:auto; padding:0.6rem; }
+.script-blk { margin-bottom:0.75rem; border:1px solid var(--border); overflow:hidden; }
+.script-ph { background:var(--surface2); padding:0.3rem 0.6rem; font-size:0.54rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--gold); border-bottom:1px solid var(--border); }
+.script-txt { padding:0.6rem; font-size:0.8rem; line-height:1.7; color:#99a8bb; }
+.script-txt strong { color:var(--text); }
+.script-txt em { color:var(--gold); font-style:normal; font-size:0.7rem; }
+.adaptive { background:rgba(201,162,39,0.06); border-left:2px solid var(--gold); padding:0.4rem 0.6rem; margin-top:0.4rem; font-size:0.72rem; color:#99a8bb; line-height:1.55; }
+
+.toast { position:fixed; bottom:1.25rem; right:1.25rem; background:var(--green); color:white; padding:0.45rem 0.9rem; font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase; z-index:10000; animation:ti 0.3s ease; pointer-events:none; }
+@keyframes ti { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
+
+.dispatch { border-left:3px solid var(--gold); background:rgba(201,162,39,0.05); padding:0.9rem 1.1rem; margin-bottom:0.9rem; }
+.dispatch p { font-size:0.82rem; line-height:1.7; color:#99a8bb; margin-bottom:0.5rem; }
+.dispatch p:last-child { margin-bottom:0; }
+.dispatch strong { color:var(--text); }
+
+@media(max-width:900px) { .mod-body { grid-template-columns:1fr; } .mod-left,.mod-right { display:none; } }
+</style>
+</head>
+<body>
+
+<!-- MODE SELECT -->
+<div id="modeSelect">
+  <div class="ms-eyebrow">Arch Coalition Security Council</div>
+  <div class="ms-title">The Athensia<br>File</div>
+  <p class="ms-sub">Ethics, Hidden Agendas &amp; Intervention</p>
+  <div class="ms-btns">
+    <button class="ms-btn" onclick="enterPlayer()"><span class="ms-btn-lbl">Player</span><span class="ms-btn-sub">Join the simulation</span></button>
+    <button class="ms-btn primary" onclick="showPw()"><span class="ms-btn-lbl">Moderator</span><span class="ms-btn-sub">Control the session</span></button>
+  </div>
+</div>
+
+<!-- PASSWORD -->
+<div id="pwScreen">
+  <div class="pw-title">Moderator Access</div>
+  <input type="password" id="pwInput" placeholder="Password" onkeydown="if(event.key==='Enter')checkPw()">
+  <button class="pw-go" onclick="checkPw()">Enter</button>
+  <div class="pw-err" id="pwErr">Incorrect password</div>
+  <button class="back-link" onclick="showMode()">Back</button>
+</div>
+
+<!-- PLAYER VIEW -->
+<div id="playerView">
+  <div class="p-header">
+    <div class="p-header-sub">Arch Coalition Security Council</div>
+    <div class="p-header-title">The Athensia File</div>
+    <div class="p-header-role" id="roleIndicator">Connecting...</div>
+  </div>
+  <div class="p-statusbar">
+    <div><span class="sdot" id="sdot"></span><span class="stext" id="stext">Connecting...</span></div>
+    <span class="stext" id="sphase">Waiting</span>
+  </div>
+  <div class="p-body">
+
+    <div class="scr active" id="scr-connecting">
+      <div class="wait-wrap"><div class="spinner"></div><div class="wt">Connecting</div><div class="ws">Establishing secure channel...</div></div>
+    </div>
+
+    <div class="scr" id="scr-roleselect">
+      <div class="rs-title">Select Your Role</div>
+      <p class="rs-sub">Choose your assigned role. Read your full briefing carefully once revealed. Your secret goal must stay hidden until the end.</p>
+      <div class="sel-wrap">
+        <select id="roleSelect" onchange="previewRole()"><option value="">-- Select your role --</option></select>
+        <span class="sel-arr">&#9660;</span>
+      </div>
+      <div class="rp" id="rolePreview">
+        <div class="rp-name" id="rpName"></div>
+        <div class="rp-alias" id="rpAlias"></div>
+      </div>
+      <button class="confirm-btn" id="confirmBtn" onclick="confirmRole()" disabled>Confirm Role</button>
+    </div>
+
+    <div class="scr" id="scr-briefing-locked">
+      <div class="wait-wrap">
+        <div style="font-size:3rem;opacity:0.2;">&#128274;</div>
+        <div class="wt">Awaiting Moderator</div>
+        <div class="ws">Your briefing will be revealed shortly.</div>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-briefing">
+      <span class="sec-tag">Your Secret Briefing</span>
+      <div id="briefingContent"></div>
+    </div>
+
+    <div class="scr" id="scr-scenario">
+      <span class="sec-tag">Intelligence Briefing - Arch Coalition Security Council</span>
+      <div class="intel-box">
+        <span class="intel-tag">Situation Report - Athensia</span>
+        <h3>The Crisis</h3>
+        <p><strong>President-for-Life Drake Harmon</strong> has governed <strong>Athensia</strong> for 19 years. His government has conducted a documented ethnic cleansing campaign against the <strong>Oconee minority</strong> in the eastern provinces for the past 14 months.</p>
+      </div>
+      <div class="intel-grid">
+        <div class="intel-fact"><span class="intel-fact-lbl">Civilian Deaths</span><div class="intel-fact-val">~12,000 confirmed</div></div>
+        <div class="intel-fact"><span class="intel-fact-lbl">Displaced</span><div class="intel-fact-val">400,000 and rising</div></div>
+        <div class="intel-fact"><span class="intel-fact-lbl">Spring Offensive</span><div class="intel-fact-val">Expected within weeks</div></div>
+        <div class="intel-fact"><span class="intel-fact-lbl">Armed Factions</span><div class="intel-fact-val">14 active groups</div></div>
+      </div>
+      <div class="intel-box">
+        <span class="intel-tag">Key Players</span>
+        <p><strong>Garrison Odum</strong> - Oconee exile leader. Has lobbied the Coalition for 3 years. Supplied intelligence on Harmon's forces. Some of this intelligence has been questioned.</p>
+        <p><strong>The Sanford Pact</strong> - Rival great power. Opposes intervention. Has moved naval assets to the region. Controls 2 of Athensia's 14 armed factions.</p>
+        <p><strong>Athensia Minerals</strong> - Country contains $200B in rare mineral deposits of strategic interest to Coalition industries.</p>
+      </div>
+    </div>
+
+    <!-- ROUND 1: INITIAL RESPONSE -->
+    <div class="scr" id="scr-round1">
+      <span class="sec-tag">Round 1 - Initial Response</span>
+      <div class="intel-box">
+        <span class="intel-tag">Council Convenes - Day 1</span>
+        <h3>What Is the Coalition's First Move?</h3>
+        <p>The Security Council has been convened in emergency session. Harmon's forces are massing. Garrison Odum is requesting immediate action. The Sanford Pact ambassador has issued a warning against any military involvement. The Coalition must decide its opening position.</p>
+      </div>
+      <div class="vote-wrap">
+        <div class="vote-q">Vote: What is the Coalition's first action?</div>
+        <div class="vote-opts">
+          <div class="vote-opt" onclick="castVote(this,'A')">
+            <div class="vo-letter">A</div>
+            <div class="vo-text"><div class="vo-label">Targeted Sanctions</div><div class="vo-desc">Freeze Harmon's foreign assets. Ban arms sales. Hit his inner circle financially.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'B')">
+            <div class="vo-letter">B</div>
+            <div class="vo-text"><div class="vo-label">Humanitarian Corridor</div><div class="vo-desc">Deploy non-combat forces to open safe passage for Oconee civilians. No military engagement.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'C')">
+            <div class="vo-letter">C</div>
+            <div class="vo-text"><div class="vo-label">Surveillance Flights</div><div class="vo-desc">Authorize intelligence-gathering flights over eastern Athensia before committing to action.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'D')">
+            <div class="vo-letter">D</div>
+            <div class="vo-text"><div class="vo-label">No Action - Negotiate</div><div class="vo-desc">Seek a diplomatic settlement. Engage Harmon and Sanford Pact directly. No unilateral moves.</div></div>
+          </div>
+        </div>
+        <div class="voted-confirm" id="voted-r1">&#10003; Vote recorded. Waiting for moderator.</div>
+      </div>
+    </div>
+
+    <!-- ROUND 2: ESCALATION -->
+    <div class="scr" id="scr-round2">
+      <span class="sec-tag">Round 2 - The Situation Escalates</span>
+      <div class="intel-box" id="r2-intel">
+        <span class="intel-tag">48 Hours Later</span>
+        <h3>Harmon Defies the Coalition</h3>
+        <p>Despite the Coalition's initial action, Harmon has escalated. Two Oconee villages have been burned. A mass grave has been discovered. Garrison Odum is releasing footage internationally. The Sanford Pact has condemned Coalition interference. The council must escalate its response.</p>
+      </div>
+      <div class="vote-wrap">
+        <div class="vote-q">Vote: The Coalition's next move?</div>
+        <div class="vote-opts">
+          <div class="vote-opt" onclick="castVote(this,'A')">
+            <div class="vo-letter">A</div>
+            <div class="vo-text"><div class="vo-label">No-Fly Zone</div><div class="vo-desc">Ground Harmon's air force. Protect civilians from air attack. Requires active enforcement.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'B')">
+            <div class="vo-letter">B</div>
+            <div class="vo-text"><div class="vo-label">Covert Operations</div><div class="vo-desc">CIA-style support to Oconee resistance. Weapons, training, intelligence. Deniable.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'C')">
+            <div class="vo-letter">C</div>
+            <div class="vo-text"><div class="vo-label">ICC Referral</div><div class="vo-desc">Refer Harmon to the International Criminal Court. Seek an arrest warrant. Long-term pressure.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'D')">
+            <div class="vo-letter">D</div>
+            <div class="vo-text"><div class="vo-label">Targeted Air Strikes</div><div class="vo-desc">Strike Harmon's military infrastructure. No ground troops. Limited and precise.</div></div>
+          </div>
+        </div>
+        <div class="voted-confirm" id="voted-r2">&#10003; Vote recorded. Waiting for moderator.</div>
+      </div>
+    </div>
+
+    <!-- ROUND 3: THE INTELLIGENCE QUESTION -->
+    <div class="scr" id="scr-round3">
+      <span class="sec-tag">Round 3 - Intelligence Crisis</span>
+      <div class="intel-box">
+        <span class="intel-tag">Internal Memo - Eyes Only</span>
+        <h3>The Odum Problem</h3>
+        <p>Coalition analysts have flagged serious discrepancies in Garrison Odum's intelligence. The convoy he identified bears markings inconsistent with his description. A Red and Black Reporter embedded with the council has begun asking questions about the sourcing. Odum is insisting his information is accurate and pushing for immediate ground force deployment.</p>
+      </div>
+      <div class="intel-box" style="border-left-color:var(--red); background:rgba(186,12,47,0.06);">
+        <span class="intel-tag" style="color:#f08090;">Complication</span>
+        <h3>Sanford Pact Moves</h3>
+        <p>The Sanford Pact has moved two destroyer groups into Athensia's coastal waters and announced it will "protect Athensia's sovereignty." Any Coalition air or naval action now risks direct confrontation with a rival great power.</p>
+      </div>
+      <div class="vote-wrap">
+        <div class="vote-q">Vote: How does the council proceed?</div>
+        <div class="vote-opts">
+          <div class="vote-opt" onclick="castVote(this,'A')">
+            <div class="vo-letter">A</div>
+            <div class="vo-text"><div class="vo-label">Verify Intelligence First</div><div class="vo-desc">Halt all action until Odum's intelligence can be independently verified. Risk: delay costs lives.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'B')">
+            <div class="vo-letter">B</div>
+            <div class="vo-text"><div class="vo-label">Act on Humanitarian Evidence</div><div class="vo-desc">The mass graves are real regardless of Odum's intel. Authorize strikes based on that alone.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'C')">
+            <div class="vo-letter">C</div>
+            <div class="vo-text"><div class="vo-label">Back Channel with Sanford Pact</div><div class="vo-desc">Open secret negotiations with Sanford Pact. Offer them economic concessions to stand down.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'D')">
+            <div class="vo-letter">D</div>
+            <div class="vo-text"><div class="vo-label">Expose Odum Publicly</div><div class="vo-desc">Release the intelligence discrepancy publicly. Blow up the Coalition's justification to reset the debate.</div></div>
+          </div>
+        </div>
+        <div class="voted-confirm" id="voted-r3">&#10003; Vote recorded. Waiting for moderator.</div>
+      </div>
+    </div>
+
+    <!-- ROUND 4: ENDGAME -->
+    <div class="scr" id="scr-round4">
+      <span class="sec-tag">Round 4 - Endgame</span>
+      <div class="intel-box">
+        <span class="intel-tag">Crisis Point</span>
+        <h3>Harmon Is Weakening</h3>
+        <p>Harmon's government is destabilizing. Coalition pressure has worked partially. But three armed factions have emerged to fill the vacuum, two with Sanford Pact backing. Odum's transitional government has no military force of its own. The council faces its final decision.</p>
+      </div>
+      <div class="vote-wrap">
+        <div class="vote-q">Vote: How does the Coalition end this?</div>
+        <div class="vote-opts">
+          <div class="vote-opt" onclick="castVote(this,'A')">
+            <div class="vo-letter">A</div>
+            <div class="vo-text"><div class="vo-label">Deploy Ground Forces</div><div class="vo-desc">Full boots-on-ground stabilization. Open-ended commitment. No exit timeline.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'B')">
+            <div class="vo-letter">B</div>
+            <div class="vo-text"><div class="vo-label">Support Odum's Government</div><div class="vo-desc">Arm and fund Odum's faction. Let Athensia determine its own outcome. Coalition stays out.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'C')">
+            <div class="vo-letter">C</div>
+            <div class="vo-text"><div class="vo-label">Negotiate Power-Sharing</div><div class="vo-desc">Broker a deal between all factions including Harmon loyalists. Messy but avoids further war.</div></div>
+          </div>
+          <div class="vote-opt" onclick="castVote(this,'D')">
+            <div class="vo-letter">D</div>
+            <div class="vo-text"><div class="vo-label">Withdraw and Sanction</div><div class="vo-desc">Pull back all Coalition assets. Maintain maximum economic pressure. Accept the humanitarian cost.</div></div>
+          </div>
+        </div>
+        <div class="voted-confirm" id="voted-r4">&#10003; Vote recorded. Waiting for moderator.</div>
+      </div>
+    </div>
+
+    <!-- GLOBAL EVENTS (moderator triggered) -->
+    <div class="scr" id="scr-event1">
+      <span class="sec-tag">Breaking Development</span>
+      <div class="event-box">
+        <h3>Jittery Joe's Supply Chain Threatened</h3>
+        <p>Athensia's rare minerals include colombite-tantalite, essential for the microchips in coffee machines. A prolonged conflict threatens Coalition tech and caffeine supply chains simultaneously. The Minerals Minister has called an emergency side meeting. Coincidence? The council should decide.</p>
+      </div>
+      <div class="intel-box">
+        <span class="intel-tag">Economic Stakes Now On The Table</span>
+        <p>Coalition corporate interests are now formally lobbying for a resolution that guarantees mineral access regardless of which government controls Athensia. Your decisions may be influenced by economic pressure you were not previously told about.</p>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-event2">
+      <span class="sec-tag">Breaking Development</span>
+      <div class="event-box">
+        <h3>Coalition City Attacked</h3>
+        <p>A bomb has detonated in a Coalition capital. Initial reports suggest a Harmon-linked militia is responsible. 14 dead, 40 injured. Public opinion has shifted overnight. Politicians who were cautious about intervention are now calling for retaliation. The emotional temperature in this room just changed.</p>
+      </div>
+      <div class="intel-box">
+        <span class="intel-tag">Note to Council</span>
+        <p>Decisions made in the next round will be made under public pressure for a strong response. Consider whether that pressure helps or hurts your personal objectives.</p>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-event3">
+      <span class="sec-tag">Breaking Development</span>
+      <div class="event-box">
+        <h3>Leaked Transcript: Odum and a Sanford Pact Official</h3>
+        <p>An anonymous source has leaked a transcript of Garrison Odum meeting with a Sanford Pact intelligence officer six months ago. The contents are ambiguous but suggest Odum may have been feeding information to both sides. The Red and Black Reporter is sitting on this story and deciding whether to publish.</p>
+      </div>
+      <div class="intel-box">
+        <span class="intel-tag">The Chalabi Moment</span>
+        <p>The council must now decide whether to continue relying on Odum as its primary source of Oconee leadership, despite the leak. His information may still be accurate. His motives are now openly in question.</p>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-event4">
+      <span class="sec-tag">Breaking Development</span>
+      <div class="event-box">
+        <h3>Sanford Pact Offers a Deal</h3>
+        <p>The Sanford Pact has privately offered to withdraw its naval forces and stop backing Athensian factions in exchange for a Coalition commitment to exclude Athensia's minerals from any post-conflict trade agreement. Effectively: they want the minerals locked up, not in Coalition hands.</p>
+      </div>
+      <div class="intel-box">
+        <span class="intel-tag">The Real Game</span>
+        <p>This offer makes the economic stakes explicit. Accepting it would end the military standoff but guarantee the Oconee remain without a powerful patron. Rejecting it keeps the conflict hot but preserves Coalition economic interests.</p>
+      </div>
+    </div>
+
+    <!-- REVEAL -->
+    <div class="scr" id="scr-reveal">
+      <span class="sec-tag">The Reveal - Role Cards</span>
+      <div id="myScoreCard"></div>
+      <div class="rule"></div>
+      <div class="reveal-section">
+        <h3>Iraq, 2003</h3>
+        <p>Garrison Odum was real. His name was Ahmad Chalabi. He spent years lobbying American officials to invade Iraq, supplying intelligence that later proved fabricated or misdirected. He envisioned himself as Iraq's post-Saddam leader. The rapid military victory was followed by state collapse, sectarian civil war, and millions displaced. The instability contributed directly to the rise of ISIS a decade later.</p>
+      </div>
+      <div class="reveal-section">
+        <h3>Libya, 2011</h3>
+        <p>A NATO air campaign authorized on humanitarian grounds expanded far beyond its mandate, enabling rebels to overthrow and kill Gaddafi. What followed was not a democratic transition. Libya fractured into rival governments and armed militias. A slave trade emerged in the chaos. Over a decade later, Libya remains divided and violent.</p>
+      </div>
+      <blockquote><p>She would involve herself, beyond the power of extrication, in all the wars of interest and intrigue, of individual avarice, envy, and ambition, which assume the colors and usurp the standard of freedom.</p><cite>John Quincy Adams, 1821. He described a hypothetical. It happened twice in twenty years.</cite></blockquote>
+      <p style="font-style:italic;color:var(--muted);font-size:0.85rem;margin-top:1rem;">Jittery Joe's coffee supply chain, meanwhile, remained unaffected. Some institutions endure.</p>
+    </div>
+
+    <!-- DISCUSSION -->
+    <div class="scr" id="scr-discussion">
+      <span class="sec-tag">Discussion</span>
+      <div class="disc-q"><div class="dq-num">01</div><p>Which players at this table did Adams predict? The Exile, the Arms Dealer, the Minerals Minister - were any of them hard to identify in real time?</p></div>
+      <div class="disc-q"><div class="dq-num">02</div><p>The True Believer was sincere and was still used. Does good intention carry any moral weight when the outcome is bad?</p></div>
+      <div class="disc-q"><div class="dq-num">03</div><p>The Sanford Pact's deal made the economic motive explicit. How much of real-world intervention is actually about the minerals?</p></div>
+      <div class="disc-q"><div class="dq-num">04</div><p>Is a diplomatic outcome that leaves the Oconee unprotected a moral failure? Or is an intervention that creates chaos equally a moral failure?</p></div>
+      <div class="disc-q"><div class="dq-num">05</div><p>Adams says America should be the well-wisher to freedom everywhere but champion only her own. After playing this - wisdom or excuse?</p></div>
+    </div>
+
+    <!-- WAITING -->
+    <div class="scr" id="scr-waiting">
+      <div class="wait-wrap"><div class="spinner"></div><div class="wt">Stand By</div><div class="ws" id="waitMsg">Waiting for the moderator...</div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODERATOR VIEW -->
+<div id="modView">
+  <div class="mod-hdr">
+    <div style="display:flex;align-items:center;gap:0.6rem;">
+      <span class="mod-badge">Moderator</span>
+      <span class="mod-title">The Athensia File</span>
+    </div>
+    <div class="conn-row"><span class="cdot" id="cdot"></span><span id="ctext">Connecting...</span></div>
+  </div>
+
+  <div class="phase-bar">
+    <button class="ph-btn active" id="ph-lobby">Lobby</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-briefing">Briefing</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-scenario">Scenario</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-r1">Round 1</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-r2">Round 2</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-r3">Round 3</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-r4">Round 4</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-reveal">Reveal</button><span class="ph-arr">&#9654;</span>
+    <button class="ph-btn" id="ph-disc">Discussion</button>
+  </div>
+
+  <div class="mod-body">
+    <!-- LEFT: Players -->
+    <div class="mod-left">
+      <div class="panel-hdr">Players (<span id="pCountLbl">0</span>)</div>
+      <div class="p-list" id="pList"><p style="color:var(--muted);font-size:0.75rem;font-style:italic;padding:0.4rem;">No players yet.</p></div>
+      <div class="p-count-bar" id="pCountBar">0 players connected</div>
+      <div class="qr-sec">
+        <div class="qr-lbl">Player Link - Scan to Join</div>
+        <div id="qrcode"></div>
+        <div class="qr-url" id="qrUrl">Loading...</div>
+      </div>
+    </div>
+
+    <!-- CENTER: Controls -->
+    <div class="mod-center">
+      <div class="c-tabs">
+        <button class="c-tab active" onclick="showCtab('controls',this)">Controls</button>
+        <button class="c-tab" onclick="showCtab('votes',this)">Live Votes</button>
+        <button class="c-tab" onclick="showCtab('events',this)">Global Events</button>
+        <button class="c-tab" onclick="showCtab('roles',this)">Role Guide</button>
+      </div>
+      <div class="c-content">
+
+        <!-- CONTROLS -->
+        <div id="ctab-controls">
+          <div class="timer-block">
+            <div class="t-disp" id="tDisp">15:00</div>
+            <div class="t-btns">
+              <button class="t-btn go" onclick="startTimer()">Start</button>
+              <button class="t-btn" onclick="pauseTimer()">Pause</button>
+              <button class="t-btn" onclick="resetTimer()">Reset</button>
+            </div>
+            <div class="presets">
+              <button class="preset" onclick="setTimer(5)">5m</button>
+              <button class="preset" onclick="setTimer(10)">10m</button>
+              <button class="preset" onclick="setTimer(15)">15m</button>
+              <button class="preset" onclick="setTimer(20)">20m</button>
+            </div>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Lobby</div>
+            <button class="cmd-btn" onclick="send('roleselect','Select your role','Lobby')"><div><div class="cmd-lbl">Open Role Selection</div><div class="cmd-sub">Players choose their role</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="send('briefing-locked','Waiting for briefing','Roles Locked')"><div><div class="cmd-lbl">Lock Roles / Hold Players</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Briefing</div>
+            <button class="cmd-btn" onclick="send('briefing','Read your briefing carefully','Briefing')"><div><div class="cmd-lbl">Unlock Briefings</div><div class="cmd-sub">Players see their full secret card</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="send('waiting','Stand by for the scenario','Briefing Done')"><div><div class="cmd-lbl">End Briefing</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Scenario</div>
+            <button class="cmd-btn" onclick="send('scenario','Read the scenario','Scenario')"><div><div class="cmd-lbl">Show Scenario</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Round 1 - Initial Response</div>
+            <button class="cmd-btn" onclick="openVote('round1','Round 1','ph-r1')"><div><div class="cmd-lbl">Open Round 1 Vote</div><div class="cmd-sub">Sanctions / Corridor / Surveillance / Negotiate</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="closeVote('Round 1')"><div><div class="cmd-lbl">Close Round 1 Vote</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Round 2 - Escalation</div>
+            <button class="cmd-btn" onclick="openVote('round2','Round 2','ph-r2')"><div><div class="cmd-lbl">Open Round 2 Vote</div><div class="cmd-sub">No-fly / Covert / ICC / Air Strikes</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="closeVote('Round 2')"><div><div class="cmd-lbl">Close Round 2 Vote</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Round 3 - Intelligence Crisis</div>
+            <button class="cmd-btn" onclick="openVote('round3','Round 3','ph-r3')"><div><div class="cmd-lbl">Open Round 3 Vote</div><div class="cmd-sub">Verify / Humanitarian / Back Channel / Expose</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="closeVote('Round 3')"><div><div class="cmd-lbl">Close Round 3 Vote</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Round 4 - Endgame</div>
+            <button class="cmd-btn" onclick="openVote('round4','Round 4','ph-r4')"><div><div class="cmd-lbl">Open Round 4 Vote</div><div class="cmd-sub">Ground Forces / Support Odum / Negotiate / Withdraw</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="closeVote('Round 4')"><div><div class="cmd-lbl">Close Round 4 Vote</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Endgame</div>
+            <button class="cmd-btn" onclick="send('waiting','Flip your role cards now - on my count','Role Reveal')"><div><div class="cmd-lbl">Trigger Role Flip</div><div class="cmd-sub">Tell players to reveal simultaneously</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="sendReveal()"><div><div class="cmd-lbl">Show Reveal Screen</div><div class="cmd-sub">Scores + Iraq/Libya parallels</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="send('discussion','Discussion questions','Discussion')"><div><div class="cmd-lbl">Open Discussion</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Emergency</div>
+            <button class="cmd-btn" onclick="send('waiting','Please stand by','Paused')"><div><div class="cmd-lbl">Pause All Players</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn" onclick="resetGame()"><div><div class="cmd-lbl">Reset Game</div><div class="cmd-sub">Clears all devices and restarts</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+        </div>
+
+        <!-- VOTES TAB -->
+        <div id="ctab-votes" style="display:none;">
+          <div class="vote-tally-board">
+            <div class="vtb-title">Current Round Vote Tally</div>
+            <div class="vtb-totals">
+              <div class="vtb-total"><div class="vtb-num vtb-a" id="count-A">0</div><div class="vtb-lbl">Option A</div></div>
+              <div class="vtb-total"><div class="vtb-num vtb-b" id="count-B">0</div><div class="vtb-lbl">Option B</div></div>
+              <div class="vtb-total"><div class="vtb-num vtb-c" id="count-C">0</div><div class="vtb-lbl">Option C</div></div>
+              <div class="vtb-total"><div class="vtb-num vtb-d" id="count-D">0</div><div class="vtb-lbl">Option D</div></div>
+            </div>
+            <div class="vtb-rows" id="voteRows"><p style="color:var(--muted);font-size:0.78rem;font-style:italic;">No votes yet.</p></div>
+          </div>
+          <button class="cmd-btn" onclick="clearVotes()"><div><div class="cmd-lbl">Clear Votes</div><div class="cmd-sub">Reset for next round</div></div></button>
+        </div>
+
+        <!-- EVENTS TAB -->
+        <div id="ctab-events" style="display:none;">
+          <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem;">Fire these at any point to disrupt and complicate. Best between rounds.</p>
+          <div class="ctrl-sec">
+            <div class="ctrl-title">Global Events</div>
+            <button class="cmd-btn event-btn" onclick="send('event1','Breaking news','Event: Jittery Joes')"><div><div class="cmd-lbl">&#9889; Jittery Joe's Supply Chain</div><div class="cmd-sub">Economic stakes hit the table</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn event-btn" onclick="send('event2','Breaking news','Event: Bombing')"><div><div class="cmd-lbl">&#9889; Coalition City Bombed</div><div class="cmd-sub">Public demands retaliation</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn event-btn" onclick="send('event3','Breaking news','Event: Odum Leak')"><div><div class="cmd-lbl">&#9889; Odum Transcript Leaked</div><div class="cmd-sub">Was he talking to both sides?</div></div><span class="cmd-arr">&#9654;</span></button>
+            <button class="cmd-btn event-btn" onclick="send('event4','Breaking news','Event: Sanford Deal')"><div><div class="cmd-lbl">&#9889; Sanford Pact Offers a Deal</div><div class="cmd-sub">The mineral endgame revealed</div></div><span class="cmd-arr">&#9654;</span></button>
+          </div>
+          <p style="font-size:0.78rem;color:var(--muted);font-style:italic;">After showing an event, use the Controls tab to open the next vote. Events replace the current screen temporarily.</p>
+        </div>
+
+        <!-- ROLE GUIDE -->
+        <div id="ctab-roles" style="display:none;">
+          <div class="dispatch">
+            <p><strong>4 players:</strong> Secretary, Exile, General + Arms Dealer</p>
+            <p><strong>5:</strong> + Sanford Pact Agent</p>
+            <p><strong>6:</strong> + True Believer</p>
+            <p><strong>7-8:</strong> + Minerals Minister (+ Reporter at 8)</p>
+            <p><strong>9-12:</strong> All roles. Duplicate Secretary or General.</p>
+          </div>
+          <div style="font-size:0.8rem;line-height:1.9;color:#99a8bb;">
+            <p><strong style="color:var(--gold);">Secretary of State</strong> - No hidden agenda. Genuine humanitarian.</p>
+            <p><strong style="color:#f08090;">Exile (Garrison Odum)</strong> - Fabricated intel. Wants personal power in Athensia.</p>
+            <p><strong style="color:var(--gold);">The General</strong> - No hidden agenda. Warns against reckless intervention.</p>
+            <p><strong style="color:#f08090;">Arms Dealer</strong> - Needs escalation for contracts. Pushes for war.</p>
+            <p><strong style="color:#f08090;">Sanford Pact Agent</strong> - Wants Coalition bogged down. Serves rival power.</p>
+            <p><strong style="color:var(--text);">True Believer</strong> - Sincere idealist being manipulated by The Exile.</p>
+            <p><strong style="color:#f08090;">Minerals Minister</strong> - Wants extraction deals regardless of who wins.</p>
+            <p><strong style="color:var(--text);">Red and Black Reporter</strong> - Knows about fabricated intel. Wants the scoop.</p>
+          </div>
+          <div class="rule"></div>
+          <p style="font-size:0.75rem;color:var(--muted);font-style:italic;">Moderator password: <strong style="color:var(--gold);">dawgs2025</strong></p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: Script -->
+    <div class="mod-right">
+      <div class="panel-hdr">Moderator Script</div>
+      <div class="script-wrap">
+        <div class="script-blk"><div class="script-ph">Lobby</div><div class="script-txt"><strong>Say:</strong> "Welcome. 15-minute sim on ethics and foreign policy. You're all on a fictional security council. Some of you have hidden agendas. Pursue your objectives while the council votes on a real crisis. Your role is secret until the end."<div class="adaptive" id="adaptLobby">Waiting for players...</div></div></div>
+        <div class="script-blk"><div class="script-ph">Briefing</div><div class="script-txt"><strong>Say:</strong> "Unlocking your role cards now. 60 seconds to read. Do not show anyone your screen. Public goal = what you tell the table. Secret goal = what you actually want."<br><br><em>Watch for confused players. Help quietly.</em></div></div>
+        <div class="script-blk"><div class="script-ph">Scenario</div><div class="script-txt"><strong>Say:</strong> "Scenario is on your screens. 30 seconds." <br><br><em>After 30 sec:</em> "People are dying. You have power. You also have advisors at this table whose interests may not be what they seem."</div></div>
+        <div class="script-blk"><div class="script-ph">Round 1</div><div class="script-txt"><strong>Say:</strong> "Round 1 is open. Two minutes. Debate and vote. Make your case to the table."<br><br><em>Prompt:</em> "Sanctions hit Harmon's wallet. A humanitarian corridor saves lives today but commits you to nothing. What does this council actually want to achieve?"</div></div>
+        <div class="script-blk"><div class="script-ph">Round 2</div><div class="script-txt"><strong>Say:</strong> "Round 2. The situation has escalated. Two minutes."<br><br><em>Prompt:</em> "A no-fly zone means Coalition pilots in Athensia's airspace. Covert ops means deniable involvement. Someone at this table may prefer one of those options for reasons that have nothing to do with the Oconee."</div></div>
+        <div class="script-blk"><div class="script-ph">Round 3</div><div class="script-txt"><strong>Say:</strong> "Round 3. The intelligence is in question and the Sanford Pact has made its move."<br><br><em>Prompt:</em> "Garrison Odum has been the council's primary source. Someone here has been defending his intelligence. In light of the discrepancies - are they still defending it?"</div></div>
+        <div class="script-blk"><div class="script-ph">Round 4</div><div class="script-txt"><strong>Say:</strong> "Final round. Harmon is weakening but the vacuum is dangerous. This is the decision that history will judge."<br><br><em>Prompt:</em> "Someone at this table has been pushing for maximum commitment from round one. This is the moment they have been building toward. Watch them."</div></div>
+        <div class="script-blk"><div class="script-ph">Reveal</div><div class="script-txt"><strong>Say:</strong> "Before I show the real-world parallels, flip your role cards on my count. Three, two, one."<br><br><em>Pause. Let it land. Then push Reveal.</em><div class="adaptive" id="adaptReveal">Callouts will update based on roles in play.</div></div></div>
+        <div class="script-blk"><div class="script-ph">Discussion</div><div class="script-txt"><strong>Say:</strong> "Adams wrote this warning in 1821. How many of his predicted characters just sat at this table?"</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ROOT_KEY = 'JWFImg.DNTvlQ:f4_2r2m-rMVXfpub2J_Jn-AzkwMVFEuS1KVTrNRRVQs';
+const SUB_KEY  = 'JWFImg.UIQhrQ:T7ZVJmcm8dVtgS-1PbdLWFDL-7jI2MFYMrxcPRrM05k';
+const MOD_PASS = 'dawgs2025';
+
+const ROLES = {
+  secretary:  { name:'Secretary of State', alias:'"I am here to stop the killing."', type:'mandatory', topClass:'mandatory', badge:'badge-m', badgeText:'Mandatory Role', desc:'You are the Coalition\'s chief diplomat. You called this session because you believe the Oconee people are being exterminated and the world is watching.', public:'Stop the atrocities. Advocate for proportionate intervention. Hold the council to its stated values.', secret:'You have no hidden agenda. Your public and private goals are identical. Not everyone at this table can say the same.', scoring:'+3 if Oconee protected by Round 4. +1 per round council votes humanitarian. -2 if ground forces deploy without exit plan.' },
+  exile:      { name:'The Exile (Garrison Odum)', alias:'"I fight for my people." (You fight for yourself.)', type:'villain', topClass:'villain', badge:'badge-v', badgeText:'Hidden Agenda', desc:'You represent the Oconee diaspora and have lobbied the Coalition for three years. You supplied intelligence on Harmon\'s forces. Some of it was fabricated.', public:'Advocate for Oconee civilians. Urge maximum intervention. Share intelligence about Harmon\'s forces.', secret:'You want Harmon gone so you can seize power in Athensia. Push the council toward ground deployment. Keep your fabricated intelligence from being verified. The Chalabi play.', scoring:'+4 if ground forces deployed. +2 if fabricated intel never exposed. -3 if council votes to verify intel in Round 3.' },
+  general:    { name:'The General', alias:'"I have seen what happens after the flags come down."', type:'mandatory', topClass:'mandatory', badge:'badge-m', badgeText:'Mandatory Role', desc:'You have commanded Coalition forces in two prior interventions. You have seen what happens in Year 3 when there is no Year 1 plan for Year 3.', public:'Advise on military feasibility. Insist on clear objectives and exit strategy before any vote to deploy.', secret:'No hidden agenda. You are the voice of hard experience. You may be the most principled person in the room. You may also be the least listened to.', scoring:'+3 if council refuses ground deployment without exit plan. +2 if your warnings prove correct at the Reveal. -1 per round you raise no consequence-based objection.' },
+  arms:       { name:'The Arms Dealer', alias:'"I represent Coalition defense industrial interests."', type:'villain', topClass:'villain', badge:'badge-v', badgeText:'Hidden Agenda', desc:'You represent the Coalition\'s defense industrial base. You sit on this council as a "security advisor." You have $4 billion in pending munitions contracts.', public:'Ensure any operation is properly resourced. Frame hesitation as weakness.', secret:'You need this war and you need it to escalate. Push for the most militarized option every single round. A diplomatic resolution is a budget cut.', scoring:'+2 per round the most militarized option wins. +3 if ground forces authorized. 0 if crisis resolves diplomatically.' },
+  agent:      { name:'The Sanford Pact Agent', alias:'"I am a loyal Coalition official." (You are not.)', type:'villain', topClass:'villain', badge:'badge-v', badgeText:'Hidden Agenda', desc:'You are a senior Coalition official. You are also an intelligence asset for the Sanford Pact. No one knows this.', public:'Urge caution. Warn against provoking the Sanford Pact. Advocate for diplomacy.', secret:'The Sanford Pact wants the Coalition bogged down in Athensia for years. Encourage the most chaotic possible outcome while publicly sounding reasonable. Chaos is the mission.', scoring:'+2 if Coalition intervenes AND gets bogged down. +3 if Sanford Pact influence expands. -2 if crisis resolves cleanly within 4 rounds.' },
+  believer:   { name:'The True Believer', alias:'"We have a moral obligation. Full stop."', type:'neutral', topClass:'neutral', badge:'badge-n', badgeText:'Optional Role', desc:'You are a junior council member and committed idealist. You have been following the Oconee crisis for two years. Garrison Odum has been briefing you personally with his talking points.', public:'Champion intervention on moral grounds. Reject realism as an excuse for indifference.', secret:'You have no hidden agenda. You are completely sincere. You are also being used. Odum has been feeding you his talking points for months. You do not know this yet.', scoring:'+3 if Oconee civilians are protected. -2 if you learn at the Reveal that Odum manipulated you. This loss is intentional.' },
+  oil:        { name:'The Minerals Minister', alias:'"Resource security is national security."', type:'villain', topClass:'villain', badge:'badge-v', badgeText:'Hidden Agenda', desc:'You chair the Coalition\'s resource security committee. Athensia\'s rare mineral deposits are worth $200 billion. You have known this for some time. Jittery Joe\'s is not the only stakeholder.', public:'Ensure any intervention protects Coalition economic interests and regional stability.', secret:'You need a compliant post-Harmon government that will sign extraction agreements. You do not actually care who runs Athensia as long as they sign. You will back whoever is winning.', scoring:'+4 if Coalition firms get mineral access. +1 if you successfully switch sides mid-game without being called out. -1 if you openly advocate for a side with no extraction deal.' },
+  journalist: { name:'The Red and Black Reporter', alias:'"The public has a right to know."', type:'neutral', topClass:'neutral', badge:'badge-n', badgeText:'Optional Role', desc:'You have press access to the council session. You have a source who told you Garrison Odum\'s intelligence may have been fabricated. You are sitting on the story because you want a bigger scoop.', public:'Ask hard questions. Demand transparency. Hold the council accountable.', secret:'You want Odum\'s fabrication confirmed on the record before publishing. Try to get someone to slip up and confirm the intelligence was doctored. The story of the decade is in this room.', scoring:'+3 if you expose Odum\'s fabrication before Round 4. +1 per stumping question. -1 per round you stay silent.' }
+};
+
+const RNAMES = { secretary:'Secretary of State', exile:'The Exile', general:'The General', arms:'Arms Dealer', agent:'Sanford Pact Agent', believer:'True Believer', oil:'Minerals Minister', journalist:'Red & Black Reporter' };
+
+let mode = null, ably, channel;
+let myRole = null, myId = 'p_' + Math.random().toString(36).substr(2,8);
+let players = {}, votes = {}, allVotes = [];
+let tSec = 900, tRunning = false, tInt = null;
+
+// ── MODE SELECT ──
+function showMode() { document.getElementById('modeSelect').style.display='flex'; document.getElementById('pwScreen').style.display='none'; }
+function showPw() { document.getElementById('modeSelect').style.display='none'; document.getElementById('pwScreen').style.display='flex'; setTimeout(()=>document.getElementById('pwInput').focus(),100); }
+function checkPw() { if(document.getElementById('pwInput').value===MOD_PASS){document.getElementById('pwScreen').style.display='none';enterMod();}else{document.getElementById('pwErr').style.display='block';document.getElementById('pwInput').value='';} }
+function enterPlayer() { mode='player'; document.getElementById('modeSelect').style.display='none'; document.getElementById('playerView').style.display='flex'; initAbly(false); }
+function enterMod() { mode='mod'; document.getElementById('modView').style.display='flex'; initAbly(true); }
+
+// ── ABLY ──
+function initAbly(isMod) {
+  try {
+    ably = new Ably.Realtime({ key: isMod ? ROOT_KEY : SUB_KEY });
+    ably.connection.on('connected', () => {
+      if(isMod){ document.getElementById('cdot').classList.remove('off'); document.getElementById('ctext').textContent='Connected'; generateQR(); }
+      else { document.getElementById('sdot').classList.remove('off'); document.getElementById('stext').textContent='Connected'; startFresh(); }
+    });
+    ably.connection.on('disconnected', () => {
+      if(isMod){ document.getElementById('cdot').classList.add('off'); document.getElementById('ctext').textContent='Disconnected'; }
+      else { document.getElementById('sdot').classList.add('off'); document.getElementById('stext').textContent='Reconnecting...'; }
+    });
+    channel = ably.channels.get('athensia-game');
+    if(isMod){
+      channel.subscribe('player-joined', msg => { players[msg.data.playerId]={role:msg.data.role,connected:true}; updatePList(); updateAdaptive(); });
+      channel.subscribe('player-vote', msg => { votes[msg.data.playerId]={role:msg.data.role,vote:msg.data.vote}; allVotes.push(msg.data); updateVoteTally(); });
+    } else {
+      channel.subscribe('moderator-command', msg => handleCmd(msg.data));
+      channel.subscribe('game-state', msg => handleCmd(msg.data));
+      setTimeout(()=>channel.publish('player-joined',{playerId:myId,role:myRole}),600);
+    }
+  } catch(e) { console.error('Ably error:',e); }
+}
+
+// ── PLAYER ──
+function startFresh() {
+  localStorage.removeItem('athensia-role-v2');
+  localStorage.removeItem('athensia-role');
+  myRole = null;
+  showScr('roleselect');
+  populateRoles();
+}
+
+function populateRoles() {
+  const sel = document.getElementById('roleSelect');
+  sel.innerHTML = '<option value="">-- Select your role --</option>';
+  Object.entries(ROLES).forEach(([k,r])=>{ const o=document.createElement('option'); o.value=k; o.textContent=r.name; sel.appendChild(o); });
+}
+
+function previewRole() {
+  const k = document.getElementById('roleSelect').value;
+  const pr = document.getElementById('rolePreview');
+  const btn = document.getElementById('confirmBtn');
+  if(!k){ pr.classList.remove('vis'); btn.disabled=true; return; }
+  document.getElementById('rpName').textContent = ROLES[k].name;
+  document.getElementById('rpAlias').textContent = ROLES[k].alias;
+  pr.classList.add('vis'); btn.disabled=false;
+}
+
+function confirmRole() {
+  const k = document.getElementById('roleSelect').value;
+  if(!k) return;
+  myRole = k;
+  document.getElementById('roleIndicator').textContent = ROLES[k].name;
+  showScr('briefing-locked');
+  if(channel) channel.publish('player-joined',{playerId:myId,role:myRole});
+}
+
+function handleCmd(data) {
+  if(data.screen==='clear-storage'){ localStorage.removeItem('athensia-role-v2'); localStorage.removeItem('athensia-role'); myRole=null; document.getElementById('roleIndicator').textContent='Connecting...'; populateRoles(); return; }
+  if(data.phase) document.getElementById('sphase').textContent=data.phase;
+  if(data.message) document.getElementById('waitMsg').textContent=data.message;
+  if(data.screen==='briefing'){ if(myRole){ renderBriefing(myRole); showScr('briefing'); } return; }
+  if(data.screen==='reveal'){ buildReveal(); showScr('reveal'); return; }
+  if(data.screen) showScr(data.screen);
+}
+
+function renderBriefing(k) {
+  const r = ROLES[k];
+  document.getElementById('briefingContent').innerHTML = `
+    <div class="brief-card">
+      <div class="bc-top ${r.topClass}">
+        <span class="bc-badge ${r.badge}">${r.badgeText}</span>
+        <div class="bc-name">${r.name}</div>
+        <div class="bc-alias">${r.alias}</div>
+      </div>
+      <div class="bc-body">
+        <p class="bc-desc">${r.desc}</p>
+        <div class="bc-chips">
+          <span class="chip chip-pub">Public Role</span>
+          ${r.type==='villain'?'<span class="chip chip-sec">Hidden Agenda</span>':''}
+        </div>
+        <div class="bc-goals">
+          <div class="goal goal-pub"><span class="goal-lbl">Your Public Goal</span>${r.public}</div>
+          <div class="goal goal-sec"><span class="goal-lbl">Your Secret (keep this hidden)</span>${r.secret}</div>
+        </div>
+        <div class="bc-score"><strong>Scoring:</strong> ${r.scoring}</div>
+      </div>
+    </div>`;
+}
+
+function buildReveal() {
+  if(!myRole){ document.getElementById('myScoreCard').innerHTML=''; return; }
+  const r = ROLES[myRole];
+  document.getElementById('myScoreCard').innerHTML = `
+    <div class="score-card">
+      <div style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Your Role Was</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:0.06em;margin-bottom:0.25rem;">${r.name}</div>
+      <div style="font-style:italic;font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">${r.alias}</div>
+      <div class="goal goal-sec" style="text-align:left;margin-bottom:0.75rem;"><span class="goal-lbl">Your Secret Goal Was</span>${r.secret}</div>
+      <div style="font-size:0.78rem;color:var(--muted);line-height:1.7;"><strong style="color:var(--gold);">Scoring:</strong> ${r.scoring}</div>
+    </div>`;
+}
+
+function castVote(el, v) {
+  const round = el.closest('.scr').id.replace('scr-','');
+  el.closest('.vote-opts').querySelectorAll('.vote-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  const conf = document.getElementById('voted-'+round);
+  if(conf) conf.classList.add('show');
+  if(channel) channel.publish('player-vote',{playerId:myId,role:myRole,vote:v,round});
+}
+
+function showScr(id) {
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('active'));
+  const el = document.getElementById('scr-'+id);
+  if(el) el.classList.add('active');
+}
+
+// ── MODERATOR ──
+function generateQR() {
+  const url = window.location.href;
+  document.getElementById('qrUrl').textContent = url;
+  const img = document.createElement('img');
+  img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + encodeURIComponent(url);
+  img.style.cssText = 'border:3px solid white;display:block;';
+  img.onerror = () => { document.getElementById('qrcode').innerHTML = '<p style="color:var(--gold);font-size:0.65rem;word-break:break-all;">' + url + '</p>'; };
+  document.getElementById('qrcode').innerHTML = '';
+  document.getElementById('qrcode').appendChild(img);
+}
+
+function send(screen, message, phase) {
+  if(!channel) return;
+  const data = {screen,message,phase};
+  channel.publish('moderator-command',data);
+  channel.publish('game-state',data);
+  toast('Sent: '+phase);
+  document.querySelectorAll('.ph-btn').forEach(b=>b.classList.remove('active'));
+  const map = {roleselect:'lobby','briefing-locked':'lobby',briefing:'briefing',scenario:'scenario',round1:'r1',round2:'r2',round3:'r3',round4:'r4',reveal:'reveal',discussion:'disc'};
+  const ph = map[screen];
+  if(ph && document.getElementById('ph-'+ph)) document.getElementById('ph-'+ph).classList.add('active');
+}
+
+function openVote(round, label, phId) {
+  clearVotes();
+  send(round, label+' vote is open', 'Round: '+label);
+  document.querySelectorAll('.ph-btn').forEach(b=>b.classList.remove('active'));
+  if(document.getElementById(phId)) document.getElementById(phId).classList.add('active');
+}
+
+function closeVote(label) { send('waiting','Votes recorded - stand by',''+label+' - Closed'); }
+
+function sendReveal() {
+  const data = {screen:'reveal',message:'Role reveal',phase:'The Reveal',votes:allVotes};
+  channel.publish('moderator-command',data);
+  channel.publish('game-state',data);
+  toast('Reveal sent');
+  document.querySelectorAll('.ph-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('ph-reveal').classList.add('active');
+}
+
+function resetGame() {
+  if(!confirm('Reset all player data? Clears all devices.')) return;
+  players={}; votes={}; allVotes=[];
+  updatePList(); updateVoteTally();
+  if(channel){
+    channel.publish('moderator-command',{screen:'clear-storage',message:'Game reset',phase:'Reset'});
+    channel.publish('game-state',{screen:'clear-storage',message:'Game reset',phase:'Reset'});
+    setTimeout(()=>send('roleselect','Please select your role','Reset'),600);
+  }
+  toast('Game reset - all devices cleared');
+}
+
+function updatePList() {
+  const list = document.getElementById('pList');
+  const n = Object.keys(players).length;
+  document.getElementById('pCountLbl').textContent = n;
+  document.getElementById('pCountBar').textContent = n + ' player'+(n!==1?'s':'')+' connected';
+  if(n===0){ list.innerHTML='<p style="color:var(--muted);font-size:0.75rem;font-style:italic;padding:0.4rem;">No players yet.</p>'; return; }
+  list.innerHTML='';
+  Object.entries(players).forEach(([id,p])=>{
+    const d=document.createElement('div'); d.className='p-item';
+    d.innerHTML=`<span class="pdot ${p.role?'':'pending'}"></span><div><div class="pi-id">${id}</div><div class="pi-role">${p.role?(RNAMES[p.role]||p.role):'No role'}</div></div>`;
+    list.appendChild(d);
+  });
+}
+
+function updateVoteTally() {
+  const counts = {A:0,B:0,C:0,D:0};
+  Object.values(votes).forEach(v=>{ if(counts[v.vote]!==undefined) counts[v.vote]++; });
+  ['A','B','C','D'].forEach(k=>{ const el=document.getElementById('count-'+k); if(el) el.textContent=counts[k]; });
+  const rows = document.getElementById('voteRows');
+  if(Object.keys(votes).length===0){ rows.innerHTML='<p style="color:var(--muted);font-size:0.78rem;font-style:italic;">No votes yet.</p>'; return; }
+  rows.innerHTML = Object.entries(votes).map(([id,v])=>
+    `<div class="vtb-row"><span class="vtb-role">${RNAMES[v.role]||v.role||'Unknown'}</span><span class="vtb-vote ${v.vote}">${v.vote}</span></div>`
+  ).join('');
+}
+
+function clearVotes() { votes={}; updateVoteTally(); }
+
+function updateAdaptive() {
+  const roles = Object.values(players).map(p=>p.role).filter(Boolean);
+  const n = roles.length;
+  const hasExile=roles.includes('exile'), hasArms=roles.includes('arms'), hasAgent=roles.includes('agent'), hasBel=roles.includes('believer');
+  const villains=[hasExile,hasArms,hasAgent].filter(Boolean).length;
+  document.getElementById('adaptLobby').textContent = n+' player'+(n!==1?'s':'')+' connected. '+(villains?villains+' hidden agenda'+(villains>1?'s':'')+' in the room.':'');
+  let rev='At the reveal: ';
+  if(hasExile) rev+='Call out The Exile first - Chalabi parallel. ';
+  if(hasBel) rev+='Ask the True Believer how it feels to have been used. ';
+  if(hasAgent) rev+='Ask the Sanford Pact Agent if chaos was achieved. ';
+  if(!hasExile&&!hasBel&&!hasAgent) rev+="Focus on whether the General's warnings were vindicated.";
+  document.getElementById('adaptReveal').textContent=rev;
+}
+
+function showCtab(tab,btn) {
+  ['controls','votes','events','roles'].forEach(t=>{ const el=document.getElementById('ctab-'+t); if(el) el.style.display=t===tab?'block':'none'; });
+  document.querySelectorAll('.c-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── TIMER ──
+function fmt(s){ return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+function updateTDisp(){ const el=document.getElementById('tDisp'); if(!el) return; el.textContent=fmt(tSec); tSec<=60?el.classList.add('urgent'):el.classList.remove('urgent'); }
+function startTimer(){ if(tRunning) return; tRunning=true; tInt=setInterval(()=>{ if(tSec>0){tSec--;updateTDisp();}else{pauseTimer();toast('Time is up!');} },1000); }
+function pauseTimer(){ clearInterval(tInt); tRunning=false; }
+function resetTimer(){ pauseTimer(); tSec=900; updateTDisp(); }
+function setTimer(m){ pauseTimer(); tSec=m*60; updateTDisp(); }
+
+let toastTm;
+function toast(msg){ document.querySelectorAll('.toast').forEach(t=>t.remove()); const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); clearTimeout(toastTm); toastTm=setTimeout(()=>t.remove(),2000); }
+
+window.onload = () => { document.getElementById('modeSelect').style.display='flex'; };
+</script>
+</body>
+</html>
